@@ -1,0 +1,19 @@
+# Python Bytecode & Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs & Temporary Files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editor & OS-Specific Files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.bak
+*.orig
