@@ -38,7 +38,7 @@ def run_shell_script(
     # Construct command
     cmd = [script_path] + arguments
 
-    logger.info(f"{process_name}: Running script: {' '.join(cmd)}")
+    logger.debug(f"{process_name}: Running script: {' '.join(cmd)}")
 
     try:
         # Start subprocess
@@ -48,7 +48,7 @@ def run_shell_script(
 
         # Log stdout in real-time
         for line in process.stdout:
-            logger.info(f"{process_name}: {line.strip()}")
+            logger.debug(f"{process_name}: {line.strip()}")
 
         # Log stderr in real-time
         for line in process.stderr:
@@ -189,4 +189,8 @@ class UDPListener:
         self.stop_event.set()  # Signal the listener to stop.
         if self.thread:
             # Wait for the thread to terminate.
+            self.logger.debug(
+                f"{self.process_name}: Waiting for listener thread to "
+                "terminate..."
+            )
             self.thread.join(timeout=2)
