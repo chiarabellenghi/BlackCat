@@ -97,6 +97,6 @@ if __name__ == "__main__":
 
     # Stop the measurement
     print("\nStopping measurement")
-    blackcat.stop_measurement(verbose=args.verbose)
+    blackcat.stop_measurement()
 
     print("Done!")
