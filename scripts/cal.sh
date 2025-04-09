@@ -3,6 +3,7 @@
 # DEFAULTS
 VERBOSE=0
 CONFIG_FILE="config.cfg"
+SAVE_DIR="test/"
 
 # Parse input arguments
 while [[ $# -gt 0 ]]; do
@@ -13,6 +14,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --config_file|-c)
             CONFIG_FILE="$2"
+            shift 2
+            ;;
+        --save_path|-s)
+            SAVE_DIR="$2"
             shift 2
             ;;
         -*)
@@ -32,6 +37,12 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
 fi
 
+# Ensure SAVE_DIR is set
+if [ ! -d "$SAVE_DIR" ]; then
+    echo "Error: SAVE_DIR is not a valid directory."
+    exit 1
+fi
+
 # Function for verbose output
 log() {
     if [ $VERBOSE -eq 1 ]; then
@@ -48,7 +59,7 @@ if [ -z "$TDC_IDS" ]; then
 fi
 
 # Read the output directory from the [calibration] section of the config file
-OUT_DIR=$(awk -F '=' '/out_dir/ {print $2}' "$CONFIG_FILE" | tr -d ' ')
+OUT_DIR="$SAVE_DIR/$(awk -F '=' '/out_dir/ {print $2}' "$CONFIG_FILE" | tr -d ' ')"
 
 if [ -z "$OUT_DIR" ]; then
     echo "Error: Output directory not found in the configuration file."
@@ -73,8 +84,8 @@ dog -b write 0xfe000002 133 0x0000003a
 sleep 2
 dog -b write 0xfe000002 133 0x00000032
 
-# Get a raw calibration file for each TDC module
-log "Get raw calibration files"
+# Loop through each argument and run commands dynamically
+log "get calibration histos"
 for tdc_id in $TDC_IDS; do
     dog -b --short read -f -l 512 "$tdc_id" 72 > "$OUT_DIR/rc_${tdc_id}"
 done

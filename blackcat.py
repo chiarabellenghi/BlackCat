@@ -2,8 +2,9 @@ import os
 from pathlib import Path
 import configparser
 import logging
+import time
 from logger import configure_logging
-from utils import run_shell_script
+from utils import run_shell_script, UDPListener
 from decoders import process_raw_cal
 
 
@@ -47,9 +48,18 @@ class BlackCat(object):
         self.config_file = Path(config_file).resolve()
         if not self.config_file.exists():
             raise FileNotFoundError(
-                f"INIT ERROR: Configuration file '{self.config_file}' does not exist."
+                f"INIT ERROR: Configuration file '{self.config_file}' "
+                "does not exist."
             )
         self.config.read(self.config_file)
+        self.save_path = Path(self.config["save"]["path"]).resolve()
+        if not self.save_path.exists():
+            self.save_path.mkdir(parents=True, exist_ok=True)
+            self.logger.info(f"INIT: Created save directory: {self.save_path}")
+        else:
+            self.logger.info(
+                f"INIT: Save directory already exists: {self.save_path}"
+            )
 
         self.logger.info(f"INIT: Loaded configuration from: {self.config_file}")
 
@@ -88,7 +98,12 @@ class BlackCat(object):
                 missing in the config file.
         """
         script = self.config["calibration"]["script"]
-        arguments = ["--config_file", str(self.config_file)]
+        arguments = [
+            "--config_file",
+            str(self.config_file),
+            "--save_path",
+            str(self.save_path),
+        ]
         if verbose:
             arguments.append("--verbose")
 
@@ -105,24 +120,26 @@ class BlackCat(object):
 
     def process_raw_calibration(self, verbose=False) -> None:
         """
-        Processes raw calibration files and generates human-readable calibration files.
+        Processes raw calibration files and generates human-readable
+        calibration files.
 
-        This method ensures that the output directory for calibration files exists,
-        retrieves the list of TDC IDs from the configuration, and processes each raw
-        calibration file (`rc_<id>`) into a human-readable format (`tdc_cal_<id>`).
-        The processed files are stored in the specified calibration output directory.
+        This method ensures that the output directory for calibration files
+        exists, retrieves the list of TDC IDs from the configuration, and
+        processes each raw calibration file (`rc_<id>`) into a human-readable
+        format (`tdc_cal_<id>`). The processed files are stored in the
+        specified calibration output directory.
 
         Args:
-            verbose (bool, optional): If True, logs additional information about the
-                calibration processing. Defaults to False.
+            verbose (bool, optional): If True, logs additional information
+                about the calibration processing. Defaults to False.
 
         Raises:
-            KeyError: If required configuration keys (e.g., "calibration" or "setup")
-                are missing from the configuration file.
+            KeyError: If required configuration keys (e.g., "calibration" or
+            "setup") are missing from the configuration file.
         """
         # Make sure a 'calibration' folder exists. We put there the output
         # calibration files.
-        cal_path = Path(self.config["calibration"]["out_dir"]).resolve()
+        cal_path = self.save_path / self.config["calibration"]["out_dir"]
         cal_path.mkdir(exist_ok=True)
 
         if verbose:
@@ -146,15 +163,74 @@ class BlackCat(object):
         """
         self.setup(verbose=verbose)
         self.calibrate(verbose=verbose)
+        # To make sure everything is ok, we setup again after calibration.
+        self.setup(verbose=verbose)
 
-    def run_link_delay_measurement(self) -> None:
+    def run_link_delay_measurement(self, verbose=False) -> None:
         """
         Prepares and runs the link delay measurement process.
 
         Currently, this method only logs a message indicating that the
         process is being prepared.
         """
-        self.logger.info("Preparing to run the link delay measurement...")
+
+        if verbose:
+            self.logger.info(
+                "DELAY LINK MEASUREMENT: Preparing to run the link delay "
+                "measurement..."
+            )
+
+        # Read port configuration from the config file
+        ports = self.config["run"]["ports"].split()
+        tdcs = self.config["setup"]["tdc_ids"].split()
+
+        self.listeners = {}
+        for port, tdc in zip(ports, tdcs):
+            listener = UDPListener(
+                port=int(port),
+                out_file=self.save_path / f"data_{tdc}.bin",
+                logger=self.logger,
+                process_name="UDP LISTENER",
+            )
+            listener.start()
+            # Wait for the socket to be confirmed running
+            listener.ready_event.wait()
+            self.listeners[port] = listener
+
+        time.sleep(1)
+        if verbose:
+            self.logger.info(
+                "DELAY LINK MEASUREMENT: Link delay measurement is ready. "
+                "Starting measurement..."
+            )
+
+        # Run the measurement script
+        script = self.config["run"]["script_start"]
+        run_shell_script(
+            script,
+            logger=self.logger,
+            process_name="DELAY LINK MEASUREMENT",
+        )
+
+    def stop_measurement(self, verbose=False) -> None:
+        """
+        Placeholder method for stopping the measurement.
+        Currently, this method does not perform any actions.
+        """
+        if verbose:
+            self.logger.info("Stopping the measurement...")
+
+        # Stop the BC system
+        script = self.config["run"]["script_stop"]
+        run_shell_script(
+            script,
+            logger=self.logger,
+            process_name="STOP MEASUREMENT",
+        )
+
+        if self.listeners:
+            for listener in self.listeners.values():
+                listener.stop()
 
     def ping_of_death(self) -> None:
         """
