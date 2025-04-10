@@ -1,10 +1,13 @@
 #!/bin/bash
+
+# This needs to be updated. When the package will be installable everything will be much easier.
+
 SESSION_NAME="blackcat_dlm"
-VENV_PATH="$HOME/.venvs/blackcat"
-SCRIPT_PATH="/home/trbnet/pone-crate/chiara/blackcat/test_scripts/run_dlm.py"
+VENV_PATH="$./.venvs/"
+SCRIPT_PATH="./run_dlm.py"
 
 # Create a single command string to run inside tmux
-COMMAND="source $VENV_PATH/bin/activate  && which python && python $SCRIPT_PATH $@"
+COMMAND="source $VENV_PATH/bin/activate && python $SCRIPT_PATH $@"
 
 # Start a new tmux session running that command inside a bash shell
 tmux new-session -d -s "$SESSION_NAME"

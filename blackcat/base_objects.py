@@ -1,8 +1,8 @@
-import os
-from pathlib import Path
 import configparser
 import logging
-from logger import configure_logging
+from pathlib import Path
+from importlib.resources import files
+from blackcat.logger import configure_logging
 
 
 class BaseTDC:
@@ -12,7 +12,6 @@ class BaseTDC:
 
     def __init__(
         self,
-        base_dir: str,
         config_file: str,
         sub_dir: str = None,
         logging_level: str = "INFO",
@@ -21,8 +20,6 @@ class BaseTDC:
         we are going to work and a config file.
 
         Args:
-            base_dir (str): The base directory where the bash scripts are
-                located.
             config_file (str): Path to the configuration file.
             subdir (str, optional): Subdirectory for saving data. This is
                 appended to the save path defined in the config file.
@@ -47,16 +44,11 @@ class BaseTDC:
         configure_logging(level=logging_level)
         self.logger = logging.getLogger(self.__class__.__name__)
 
-        # Make sure the base directory exists. It has to be the directory
-        # where the  bash scripts are
-        self.base_dir = Path(base_dir).resolve()
-        if not self.base_dir.exists() or not self.base_dir.is_dir():
-            raise FileNotFoundError(
-                f"INIT ERROR: Base directory '{self.base_dir}' does not exist."
-            )
-
-        os.chdir(self.base_dir)
-        self.logger.debug(f"INIT: Changed working directory to: {Path.cwd()}")
+        # Locate the scripts directory within the package
+        self.scripts_dir = files("blackcat.scripts")
+        self.logger.debug(
+            f"INIT: Located scripts directory: {self.scripts_dir}"
+        )
 
         # Read the config file
         self.config = configparser.ConfigParser()

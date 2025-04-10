@@ -17,3 +17,22 @@ Thumbs.db
 .idea/
 *.bak
 *.orig
+
+# virtualenv
+.venv
+.env
+
+# unittest cache
+.pytest_cache/
+
+# Latex compilation files
+*.aux
+*.bbl
+*.blg
+*.out
+
+# pyenv
+.python-version
+
+# uv
+uv.lock

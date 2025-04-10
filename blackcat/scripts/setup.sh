@@ -126,7 +126,5 @@ if [ "$VERBOSE" -eq 1 ]; then
     dog -b read 0xfe000002 143
 fi
 
-echo "DONE"
-
 # enable DLMs
 #dog -b write 150 136 0x80800000

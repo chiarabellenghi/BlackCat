@@ -1,9 +1,9 @@
 import time
 import subprocess
 from pathlib import Path
-from base_objects import BaseTDC
-from utils import run_shell_script, UDPListener, USBReader
-from decoders import process_raw_cal
+from blackcat.base_objects import BaseTDC
+from blackcat.utils import run_shell_script, UDPListener, USBReader
+from blackcat.decoders import process_raw_cal
 
 
 class BlackCat(BaseTDC):
@@ -13,10 +13,8 @@ class BlackCat(BaseTDC):
     measurements.
     """
 
-    def __init__(
-        self, base_dir, config_file, sub_dir=None, logging_level="INFO"
-    ):
-        super().__init__(base_dir, config_file, sub_dir, logging_level)
+    def __init__(self, config_file, sub_dir=None, logging_level="INFO"):
+        super().__init__(config_file, sub_dir, logging_level)
 
         self.listeners = None
 
@@ -30,13 +28,18 @@ class BlackCat(BaseTDC):
         """
         self.logger.info("SETUP: Starting the setup process...")
 
-        script = self.config["setup"]["script"]
+        # Read the script name from the config file
+        script_name = self.config["setup"]["script"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         arguments = ["--config_file", str(self.config_file)]
         if verbose:
             arguments = ["--verbose"]
 
         run_shell_script(
-            script,
+            script.as_posix(),
             arguments=arguments,
             logger=self.logger,
             process_name="SETUP",
@@ -59,7 +62,12 @@ class BlackCat(BaseTDC):
         """
         self.logger.info("CALIBRATION: Starting the calibration process...")
 
-        script = self.config["calibration"]["script"]
+        # Read the script name from the config file
+        script_name = self.config["calibration"]["script"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         arguments = [
             "--config_file",
             str(self.config_file),
@@ -70,7 +78,7 @@ class BlackCat(BaseTDC):
             arguments.append("--verbose")
 
         run_shell_script(
-            script,
+            script.as_posix(),
             arguments=arguments,
             logger=self.logger,
             process_name="CALIBRATION",
@@ -199,10 +207,14 @@ class BlackCat(BaseTDC):
                 "Starting measurement..."
             )
 
-        # Run the measurement script
-        script = self.config["run"]["script_start"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_start"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         run_shell_script(
-            script,
+            script.as_posix(),
             logger=self.logger,
             process_name="DELAY LINK MEASUREMENT",
         )
@@ -217,9 +229,14 @@ class BlackCat(BaseTDC):
         self.logger.debug("STOP MEASUREMENT: Stopping all UDP listeners...")
 
         # Stop the BC system
-        script = self.config["run"]["script_stop"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_stop"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         run_shell_script(
-            script,
+            script.as_posix(),
             logger=self.logger,
             process_name="STOP MEASUREMENT",
         )
@@ -246,11 +263,15 @@ class BlackCat(BaseTDC):
         )
 
         # Send ping of death... not super safe.
-        script = self.config["run"]["script_reboot"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_reboot"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
 
         def ping_of_death():
             run_shell_script(
-                script,
+                script.as_posix(),
                 logger=self.logger,
                 process_name="REBOOT",
             )
@@ -377,10 +398,8 @@ class USBTDC(BaseTDC):
     A class to interact with an external TDC device.
     """
 
-    def __init__(
-        self, base_dir, config_file, device, sub_dir=None, logging_level="INFO"
-    ):
-        super().__init__(base_dir, config_file, sub_dir, logging_level)
+    def __init__(self, config_file, device, sub_dir=None, logging_level="INFO"):
+        super().__init__(config_file, sub_dir, logging_level)
 
         self.device = Path(device).as_posix()
         self.name = Path(device).name
@@ -396,13 +415,18 @@ class USBTDC(BaseTDC):
         """
         self.logger.info(f"{self.name} SETUP: Starting the setup process...")
 
-        script = self.config["external_TDCs"]["script_setup"]
+        # Read the script name from the config file
+        script_name = self.config["external_TDCs"]["script_setup"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         arguments = ["--ext_device", self.device]
         if verbose:
             arguments.append("--verbose")
 
         run_shell_script(
-            script,
+            script.as_posix(),
             arguments=arguments,
             logger=self.logger,
             process_name=f"{self.name} SETUP",
