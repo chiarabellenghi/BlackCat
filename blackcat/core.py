@@ -1,9 +1,10 @@
 import time
 import subprocess
 from pathlib import Path
+from typing import Optional, Dict
 from blackcat.base_objects import BaseTDC
 from blackcat.utils import run_shell_script, UDPListener, USBReader
-from blackcat.decoders import process_raw_cal
+from blackcat.data_processing import process_raw_cal
 
 
 class BlackCat(BaseTDC):
@@ -13,12 +14,17 @@ class BlackCat(BaseTDC):
     measurements.
     """
 
-    def __init__(self, config_file, sub_dir=None, logging_level="INFO"):
-        super().__init__(config_file, sub_dir, logging_level)
+    def __init__(
+        self,
+        config_file: Optional[str] = None,
+        save_path: Optional[str] = None,
+        logging_level: str = "INFO",
+    ) -> None:
+        super().__init__(config_file, save_path, logging_level)
 
-        self.listeners = None
+        self.listeners: Optional[Dict[str, UDPListener]] = None
 
-    def setup(self, verbose=False) -> None:
+    def setup(self, verbose: bool = False) -> None:
         """Sets up everything, assigning IDs and broadcast bits
         to all modules.
 
@@ -46,7 +52,7 @@ class BlackCat(BaseTDC):
         )
         self.logger.info("SETUP: DONE.")
 
-    def calibrate(self, verbose=False) -> None:
+    def calibrate(self, verbose: bool = False) -> None:
         """Runs the calibration. First get to the calibration directory
         for this runs. I have no clue what this will be in the final
         configuration of P-ONE-1, so let us keep it flexible for the
@@ -89,7 +95,7 @@ class BlackCat(BaseTDC):
         self.process_raw_calibration(verbose=verbose)
         self.logger.info("CALIBRATION: DONE.")
 
-    def process_raw_calibration(self, verbose=False) -> None:
+    def process_raw_calibration(self, verbose: bool = False) -> None:
         """
         Processes raw calibration files and generates human-readable
         calibration files.
@@ -127,7 +133,7 @@ class BlackCat(BaseTDC):
             cal_file = cal_path / f"tdc_cal_{id}"
             process_raw_cal(raw_cal_file, cal_file)
 
-    def setup_and_calibrate(self, verbose=False) -> None:
+    def setup_and_calibrate(self, verbose: bool = False) -> None:
         """Run self.setup() and self.calibrate() one after the other.
         Just for convenience.
 
@@ -140,7 +146,7 @@ class BlackCat(BaseTDC):
         # To make sure everything is ok, we setup again after calibration.
         self.setup(verbose=verbose)
 
-    def start_udp_listeners(self, outfile_suffix=None) -> None:
+    def start_udp_listeners(self, outfile_suffix: Optional[str] = None) -> None:
         """Starts the UDP listeners for the specified ports.
 
         This method reads the port configuration from the config file and
@@ -180,7 +186,7 @@ class BlackCat(BaseTDC):
             time.sleep(1)
 
     def run_link_delay_measurement(
-        self, outfile_suffix=None, verbose=False
+        self, outfile_suffix: Optional[str] = None, verbose: bool = False
     ) -> None:
         """
         Prepares and runs the link delay measurement process.
@@ -247,7 +253,7 @@ class BlackCat(BaseTDC):
         else:
             self.logger.debug("STOP MEASUREMENT: No UDP listeners to stop.")
 
-    def reboot(self, max_retry=2, verbose=False) -> None:
+    def reboot(self, max_retry: int = 2, verbose: bool = False) -> None:
         """
         Placeholder method for a potential reboot feature.
         See documentation here:
@@ -331,7 +337,9 @@ class BlackCat(BaseTDC):
         # Re-run setup after reboot
         self.setup(verbose=verbose)
 
-    def check_modules_online(self, expected_count, verbose=False) -> bool:
+    def check_modules_online(
+        self, expected_count: int, verbose: bool = False
+    ) -> bool:
         """
         Checks if all expected modules are back online after a reboot.
 
@@ -398,14 +406,33 @@ class USBTDC(BaseTDC):
     A class to interact with an external TDC device.
     """
 
-    def __init__(self, config_file, device, sub_dir=None, logging_level="INFO"):
-        super().__init__(config_file, sub_dir, logging_level)
+    def __init__(
+        self,
+        config_file: str,
+        device: str,
+        save_path: Optional[str] = None,
+        logging_level: str = "INFO",
+    ) -> None:
+        super().__init__(config_file, save_path, logging_level)
 
-        self.device = Path(device).as_posix()
-        self.name = Path(device).name
+        self.device: str = Path(device).as_posix()
+        self.name: str = Path(device).name
         self.logger.info(f"{self.device}: Initialized.")
 
-    def setup(self, verbose=False) -> None:
+    @property
+    def name(self) -> str:
+        """Getter for the `name` attribute."""
+        return self._name
+
+    @name.setter
+    def name(self, new_name: str) -> None:
+        """Setter for the `name` attribute."""
+        if not new_name:
+            raise ValueError("The name cannot be empty.")
+        self.logger.info(f"Updating name from {self._name} to {new_name}.")
+        self._name = new_name
+
+    def setup(self, verbose: bool = False) -> None:
         """Sets up everything, assigning IDs and broadcast bits
         to all modules.
 
@@ -418,7 +445,8 @@ class USBTDC(BaseTDC):
         # Read the script name from the config file
         script_name = self.config["external_TDCs"]["script_setup"]
 
-        # Construct the full path to the script using the dynamically located scripts_dir
+        # Construct the full path to the script using the dynamically
+        # located scripts_dir
         script = self.scripts_dir / script_name
 
         arguments = ["--ext_device", self.device]
@@ -433,7 +461,7 @@ class USBTDC(BaseTDC):
         )
         self.logger.info(f"{self.name} SETUP: DONE.")
 
-    def start_usb_reading(self, outfile_suffix=None) -> None:
+    def start_usb_reading(self, outfile_suffix: Optional[str] = None) -> None:
         """
         Starts reading data from the USB device in the background.
 
