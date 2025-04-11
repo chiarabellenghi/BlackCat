@@ -20,3 +20,7 @@ dev = [
 
 [tool.setuptools.package-data]
 "blackcat" = ["scripts/*"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
