@@ -1,92 +1,22 @@
-import os
-from pathlib import Path
-import configparser
-import logging
 import time
 import subprocess
-from logger import configure_logging
-from utils import run_shell_script, UDPListener
-from decoders import process_raw_cal
+from pathlib import Path
+from blackcat.base_objects import BaseTDC
+from blackcat.utils import run_shell_script, UDPListener, USBReader
+from blackcat.decoders import process_raw_cal
 
 
-class BlackCat(object):
+class BlackCat(BaseTDC):
     """This class is hopefully helpful to use the BlackCat system.
     With methods implemented for this object, you can setup the
     system, run calibration measurements, run round-trip link delay
     measurements.
     """
 
-    def __init__(
-        self,
-        base_dir: str,
-        config_file: str,
-        sub_dir: str = None,
-        logging_level: str = "INFO",
-    ) -> None:
-        """Initializes the object giving it a base directory where
-        we are going to work and a config file.
+    def __init__(self, config_file, sub_dir=None, logging_level="INFO"):
+        super().__init__(config_file, sub_dir, logging_level)
 
-        Args:
-            base_dir (str): The base directory where the bash scripts are
-                located.
-            config_file (str): Path to the configuration file.
-            subdir (str, optional): Subdirectory for saving data. This is
-                appended to the save path defined in the config file.
-                It can be useful when running multiple measurements
-                requiring a calibration each. Defaults to None.
-            logging_level (int, optional): Logging level. Defaults to
-                INFO.
-
-        Raises:
-            FileNotFoundError: If the base directory does not exist or is
-                not a directory.
-        """
-        # Initialize logger for this class
-        if logging_level == "INFO":
-            logging_level = logging.INFO
-        elif logging_level == "DEBUG":
-            logging_level = logging.DEBUG
-        else:
-            raise ValueError(
-                f"Invalid logging level: {logging_level}. Use 'INFO', 'DEBUG'."
-            )
-        configure_logging(level=logging_level)
-        self.logger = logging.getLogger(self.__class__.__name__)
-
-        # Make sure the base directory exists. It has to be the directory
-        # where the  bash scripts are
-        self.base_dir = Path(base_dir).resolve()
-        if not self.base_dir.exists() or not self.base_dir.is_dir():
-            raise FileNotFoundError(
-                f"INIT ERROR: Base directory '{self.base_dir}' does not exist."
-            )
-
-        os.chdir(self.base_dir)
-        self.logger.debug(f"INIT: Changed working directory to: {Path.cwd()}")
-
-        # Read the config file
-        self.config = configparser.ConfigParser()
-        self.config_file = Path(config_file).resolve()
-        if not self.config_file.exists():
-            raise FileNotFoundError(
-                f"INIT ERROR: Configuration file '{self.config_file}' "
-                "does not exist."
-            )
-        self.config.read(self.config_file)
-        self.save_path = Path(self.config["save"]["path"]).resolve()
-        if sub_dir:
-            self.save_path /= sub_dir
-        if not self.save_path.exists():
-            self.save_path.mkdir(parents=True, exist_ok=True)
-            self.logger.debug(f"INIT: Created save directory: {self.save_path}")
-        else:
-            self.logger.debug(
-                f"INIT: Save directory already exists: {self.save_path}"
-            )
-
-        self.logger.debug(
-            f"INIT: Loaded configuration from: {self.config_file}"
-        )
+        self.listeners = None
 
     def setup(self, verbose=False) -> None:
         """Sets up everything, assigning IDs and broadcast bits
@@ -98,13 +28,18 @@ class BlackCat(object):
         """
         self.logger.info("SETUP: Starting the setup process...")
 
-        script = self.config["setup"]["script"]
+        # Read the script name from the config file
+        script_name = self.config["setup"]["script"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         arguments = ["--config_file", str(self.config_file)]
         if verbose:
             arguments = ["--verbose"]
 
         run_shell_script(
-            script,
+            script.as_posix(),
             arguments=arguments,
             logger=self.logger,
             process_name="SETUP",
@@ -127,7 +62,12 @@ class BlackCat(object):
         """
         self.logger.info("CALIBRATION: Starting the calibration process...")
 
-        script = self.config["calibration"]["script"]
+        # Read the script name from the config file
+        script_name = self.config["calibration"]["script"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         arguments = [
             "--config_file",
             str(self.config_file),
@@ -138,7 +78,7 @@ class BlackCat(object):
             arguments.append("--verbose")
 
         run_shell_script(
-            script,
+            script.as_posix(),
             arguments=arguments,
             logger=self.logger,
             process_name="CALIBRATION",
@@ -200,20 +140,18 @@ class BlackCat(object):
         # To make sure everything is ok, we setup again after calibration.
         self.setup(verbose=verbose)
 
-    def run_link_delay_measurement(
-        self, outfile_suffix=None, verbose=False
-    ) -> None:
-        """
-        Prepares and runs the link delay measurement process.
+    def start_udp_listeners(self, outfile_suffix=None) -> None:
+        """Starts the UDP listeners for the specified ports.
 
-        Currently, this method only logs a message indicating that the
-        process is being prepared.
-        """
+        This method reads the port configuration from the config file and
+        starts a UDP listener for each port. The listeners are stored in
+        the `self.listeners` dictionary.
 
-        if verbose:
-            self.logger.info(
-                "DELAY LINK MEASUREMENT: Starting the link delay measurement"
-            )
+        Raises:
+            KeyError: If the "run" section or "ports" key is missing in
+                the config file.
+        """
+        self.logger.debug("UDP LISTENER: Starting UDP listeners...")
 
         # Read port configuration from the config file
         ports = self.config["run"]["ports"].split()
@@ -239,20 +177,49 @@ class BlackCat(object):
             listener.ready_event.wait()
             self.listeners[port] = listener
 
-        time.sleep(1)
+            time.sleep(1)
+
+    def run_link_delay_measurement(
+        self, outfile_suffix=None, verbose=False
+    ) -> None:
+        """
+        Prepares and runs the link delay measurement process.
+
+        Currently, this method only logs a message indicating that the
+        process is being prepared.
+        """
+
+        if verbose:
+            self.logger.info(
+                "DELAY LINK MEASUREMENT: Starting the link delay measurement"
+            )
+        if not self.listeners:
+            self.logger.info(
+                "DELAY LINK MEASUREMENT: No UDP listeners found. "
+                "Starting UDP listeners..."
+            )
+            # Start the UDP listeners
+            self.start_udp_listeners(outfile_suffix=outfile_suffix)
+
         if verbose:
             self.logger.debug(
                 "DELAY LINK MEASUREMENT: Link delay measurement is ready. "
                 "Starting measurement..."
             )
 
-        # Run the measurement script
-        script = self.config["run"]["script_start"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_start"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         run_shell_script(
-            script,
+            script.as_posix(),
             logger=self.logger,
             process_name="DELAY LINK MEASUREMENT",
         )
+
+        self.logger.info("DELAY LINK MEASUREMENT: Running...")
 
     def stop_measurement(self) -> None:
         """
@@ -262,9 +229,14 @@ class BlackCat(object):
         self.logger.debug("STOP MEASUREMENT: Stopping all UDP listeners...")
 
         # Stop the BC system
-        script = self.config["run"]["script_stop"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_stop"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
         run_shell_script(
-            script,
+            script.as_posix(),
             logger=self.logger,
             process_name="STOP MEASUREMENT",
         )
@@ -291,11 +263,15 @@ class BlackCat(object):
         )
 
         # Send ping of death... not super safe.
-        script = self.config["run"]["script_reboot"]
+        # Read the script name from the config file
+        script_name = self.config["run"]["script_reboot"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
 
         def ping_of_death():
             run_shell_script(
-                script,
+                script.as_posix(),
                 logger=self.logger,
                 process_name="REBOOT",
             )
@@ -415,3 +391,80 @@ class BlackCat(object):
                 f"Command: {e.cmd}"
             )
             raise RuntimeError(f"DOG DISCOVER: command failed: {e.stderr}")
+
+
+class USBTDC(BaseTDC):
+    """
+    A class to interact with an external TDC device.
+    """
+
+    def __init__(self, config_file, device, sub_dir=None, logging_level="INFO"):
+        super().__init__(config_file, sub_dir, logging_level)
+
+        self.device = Path(device).as_posix()
+        self.name = Path(device).name
+        self.logger.info(f"{self.device}: Initialized.")
+
+    def setup(self, verbose=False) -> None:
+        """Sets up everything, assigning IDs and broadcast bits
+        to all modules.
+
+        Raises:
+            KeyError: If the "setup" section or "script" key is missing in
+                the config file.
+        """
+        self.logger.info(f"{self.name} SETUP: Starting the setup process...")
+
+        # Read the script name from the config file
+        script_name = self.config["external_TDCs"]["script_setup"]
+
+        # Construct the full path to the script using the dynamically located scripts_dir
+        script = self.scripts_dir / script_name
+
+        arguments = ["--ext_device", self.device]
+        if verbose:
+            arguments.append("--verbose")
+
+        run_shell_script(
+            script.as_posix(),
+            arguments=arguments,
+            logger=self.logger,
+            process_name=f"{self.name} SETUP",
+        )
+        self.logger.info(f"{self.name} SETUP: DONE.")
+
+    def start_usb_reading(self, outfile_suffix=None) -> None:
+        """
+        Starts reading data from the USB device in the background.
+
+        Args:
+            outfile_suffix (str): Suffix for the output file where data will be saved.
+        """
+        if outfile_suffix is None:
+            out_file = self.save_path / f"data_{self.name}.bin"
+        else:
+            out_file = self.save_path / f"data_{self.name}_{outfile_suffix}.bin"
+
+        self.logger.info(
+            f"{self.name} READ: Starting USB reading to {out_file}..."
+        )
+        self.usb_reader = USBReader(
+            device=self.device,
+            out_file=str(out_file),
+            logger=self.logger,
+            process_name=f"{self.name} USB_READER",
+        )
+        self.usb_reader.start()
+
+    def stop_usb_reading(self) -> None:
+        """
+        Stops the USB reading process.
+        """
+        if self.usb_reader:
+            self.logger.info(f"{self.name} READ: Stopping USB reading...")
+            self.usb_reader.stop()
+            self.usb_reader = None
+        else:
+            self.logger.warning(
+                f"{self.device} READ: No USB reading process to stop."
+            )

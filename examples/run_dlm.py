@@ -1,18 +1,10 @@
 import argparse
 import time
-from blackcat import BlackCat
+from blackcat.core import BlackCat
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Run the DLM script for BlackCat system."
-    )
-    parser.add_argument(
-        "--base-dir",
-        "-b",
-        type=str,
-        default="/home/trbnet/pone-crate/chiara/blackcat",
-        help="Base directory where the bash scripts are located. "
-        "Default is /home/trbnet/pone-crate/chiara/blackcat.",
     )
     parser.add_argument(
         "--config-file",
@@ -67,7 +59,7 @@ if __name__ == "__main__":
 
     # Initialize BlackCat object
     print("\nInitialize BlackCat")
-    blackcat = BlackCat(args.base_dir, args.config_file, args.subdir)
+    blackcat = BlackCat(args.config_file, args.subdir)
 
     # Run setup and calibration (if specified)
     if args.calibration:
@@ -97,6 +89,6 @@ if __name__ == "__main__":
 
     # Stop the measurement
     print("\nStopping measurement")
-    blackcat.stop_measurement(verbose=args.verbose)
+    blackcat.stop_measurement()
 
     print("Done!")

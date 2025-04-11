@@ -194,3 +194,117 @@ class UDPListener:
                 "terminate..."
             )
             self.thread.join(timeout=2)
+
+
+class USBReader:
+    """USB Reader helper class to read data from a USB device and save it to a file.
+
+    This class sets up a background thread to read data from a USB device
+    and write it to a specified output file.
+
+    Attributes
+    ----------
+    - device : str
+        The path to the USB device (e.g., '/dev/ttyUSB0').
+    - out_file : str
+        The path to the file where received data will be written.
+    - process_name : str
+        A name to identify the process in log messages.
+    - logger : logging.Logger
+        Logger instance to log messages.
+    - stop_event : threading.Event
+        Event used to signal the reader to stop.
+    - thread : threading.Thread
+        The thread running the reader.
+    """
+
+    def __init__(
+        self,
+        device: str,
+        out_file: str,
+        logger: Optional[logging.Logger] = None,
+        process_name: str = "USB_READER",
+    ):
+        """
+        Initializes the USBReader instance.
+
+        Parameters
+        ----------
+        - device : str
+            The path to the USB device (e.g., '/dev/ttyUSB0').
+        - out_file : str
+            The path to the file where received data will be written.
+        - logger : logging.Logger, optional
+            A logger instance to log messages. If not provided, a default
+            logger is used.
+        - process_name : str, optional
+            A name to identify the process in log messages. Defaults to
+            "USB_READER".
+        """
+        self.device = device
+        self.out_file = out_file
+        self.process_name = process_name
+        self.logger = logger or logging.getLogger(__name__)
+        self.stop_event = threading.Event()  # To stop the reader.
+        self.thread = None  # Thread that will run the reader.
+
+    def start(self):
+        """
+        Starts the USB reader in a background thread.
+        """
+        self.logger.info(
+            f"{self.process_name}: Starting USB reader for device {self.device}, "
+            f"writing to {self.out_file}"
+        )
+
+        def read_usb():
+            try:
+                with open(self.out_file, "wb") as file:
+                    self.logger.debug(
+                        f"{self.process_name}: Reading from {self.device} and "
+                        f"saving to {self.out_file}..."
+                    )
+                    # Use subprocess to read from the USB device
+                    process = subprocess.Popen(
+                        ["cat", self.device],
+                        stdout=file,
+                        stderr=subprocess.PIPE,
+                    )
+                    while not self.stop_event.is_set():
+                        # Poll the process to check if it's still running
+                        if process.poll() is not None:
+                            break
+                    # Terminate the process if stop_event is set
+                    if self.stop_event.is_set():
+                        process.terminate()
+                        self.logger.info(
+                            f"{self.process_name}: USB reading stopped."
+                        )
+            except FileNotFoundError as e:
+                self.logger.error(f"{self.process_name}: Error: {e}")
+            except Exception as e:
+                self.logger.error(f"{self.process_name}: Unexpected error: {e}")
+
+        # Start the USB reading in a background thread
+        self.thread = threading.Thread(target=read_usb, daemon=True)
+        self.thread.start()
+        self.logger.info(
+            f"{self.process_name}: USB reader started in the background."
+        )
+
+    def stop(self):
+        """
+        Stops the USB reader.
+        Signals the reader to stop and waits for the thread to terminate.
+        """
+        self.logger.info(
+            f"{self.process_name}: Stopping USB reader for device {self.device}..."
+        )
+        self.stop_event.set()  # Signal the reader to stop.
+        if self.thread:
+            # Wait for the thread to terminate.
+            self.logger.debug(
+                f"{self.process_name}: Waiting for USB reader thread to terminate..."
+            )
+            self.thread.join(timeout=2)
+        self.logger.info(f"{self.process_name}: USB reader stopped.")

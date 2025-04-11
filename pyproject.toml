@@ -1,0 +1,26 @@
+[project]
+name = "blackcat"
+version = "0.1.0"
+description = "Python wrapper framework for TDC and shell utilities"
+authors = [{ name="Chiara Bellenghi", email="chiara.bellenghi@tum.de" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.10.1",
+    "pandas>=2.2.3",
+    "pytest>=8.3.5",
+    "pytest-mock>=3.14.0",
+]
+
+[tool.setuptools.package-data]
+"blackcat" = ["scripts/*"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
