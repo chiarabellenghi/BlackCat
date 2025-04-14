@@ -17,15 +17,19 @@ BLOCK_RAM_SIZE = 512
 EPOC_UNIT = 4096.0 * 1000.0 / TDC_FREQ
 
 
-def process_raw_cal(infile: str, outfile: str) -> None:
+def process_raw_cal(infile: str, outfile: str, verbose: bool = False) -> None:
     """
     Processes a raw calibration file and generates a calibration data file.
 
     Args:
         infile (str): Path to the input raw calibration file.
         outfile (str): Path to the output calibration data file.
+        verbose (bool): If True, prints additional information during processing.
     """
     try:
+        if verbose:
+            print(f"Starting processing of raw calibration file: {infile}")
+            print(f"Output will be written to: {outfile}")
         # Initialize histogram
         entries = np.zeros(BLOCK_RAM_SIZE, dtype=int)
 
@@ -53,9 +57,7 @@ def process_raw_cal(infile: str, outfile: str) -> None:
             )
 
             # Write the header line
-            fout.write(
-                "# BIN NUM   ENTRIES   BIN WIDTH   BIN CENTER   BIN SUM\n"
-            )
+            fout.write("BIN   ENTRIES   BIN_WIDTH   BIN_CENTER   BIN_SUM\n")
 
             # Process bins and write results
             for i in range(len(entries)):
@@ -65,6 +67,9 @@ def process_raw_cal(infile: str, outfile: str) -> None:
                 fout.write(
                     f"{i:4d} {entries[i]:8d} {bin_width:10.5f} {bin_center:10.5f} {summed:10.5f}\n"
                 )
+
+        if verbose:
+            print("Processing completed successfully.\n")
 
     except FileNotFoundError as e:
         print(f"Error: {e}")
@@ -89,9 +94,10 @@ def load_calibration_file(cal_file: str) -> pd.DataFrame:
         # Use pandas to read the calibration file, skipping the first two lines
         df = pd.read_csv(
             cal_file,
-            delim_whitespace=True,
+            sep="\s+",
             skiprows=2,
-            names=["BIN_NUM", "ENTRIES", "BIN_WIDTH", "BIN_CENTER", "BIN_SUM"],
+            header=0,
+            # names=["BIN", "ENTRIES", "BIN_WIDTH", "BIN_CENTER", "BIN_SUM"],
         )
 
         # Ensure the number of bins matches BLOCK_RAM_SIZE
@@ -128,7 +134,13 @@ def read_longwords(file: BinaryIO) -> Generator[int, None, None]:
         yield int.from_bytes(data_bytes, byteorder="big")
 
 
-def unpack_dlm_data(cal_file: str, input_file: str, period: int = 128) -> None:
+def unpack_dlm_data(
+    cal_file: str,
+    infile: str,
+    period: int = 6666666,
+    outfile: str = None,
+    verbose: bool = False,
+) -> None:
     """
     Unpacks DLM data from a binary file using a calibration file.
 
@@ -136,10 +148,29 @@ def unpack_dlm_data(cal_file: str, input_file: str, period: int = 128) -> None:
         cal_file (str): Path to the calibration file.
         input_file (str): Path to the binary input file.
         period (int): Period between DLMs in [ns].
+        outfile (str): Path to the output file. If None, prints to stdout.
+        verbose (bool): If True, prints additional information during
+            processing.
     """
+    if verbose:
+        print("\nStarting unpacking of DLM data.")
+        print(f"Calibration file: {cal_file}")
+        print(f"Input file: {infile}")
+        if outfile:
+            print(f"Output file: {outfile}")
+        else:
+            print("Output will be printed to stdout.")
+        print(f"Expected DLM period: {period} ns")
+
     # Load the calibration file
     calibration_data = load_calibration_file(cal_file)
     lut_ft = calibration_data["BIN_CENTER"].values
+
+    if verbose:
+        print(
+            "\nCalibration data loaded successfully. Number of bins: "
+            f"{len(lut_ft)}"
+        )
 
     dlm_period = float(period)
     epoc_raw = 0
@@ -150,11 +181,14 @@ def unpack_dlm_data(cal_file: str, input_file: str, period: int = 128) -> None:
         Processes an epoch word and calculates the epoch difference.
 
         Returns:
-            Tuple[int, float, bool]: Updated epoc_raw_old, epoch difference in ns, and first_hit flag.
+            Tuple[int, float, bool]: Updated epoc_raw_old, epoch difference in
+                ns, and first_hit flag.
         """
         epoc = dataword & 0x0FFFFFFF
 
         if first_hit:
+            if verbose:
+                print("First epoch detected.")
             return epoc, 0.0, False
 
         epoc_diff_int = epoc - epoc_raw
@@ -184,55 +218,78 @@ def unpack_dlm_data(cal_file: str, input_file: str, period: int = 128) -> None:
         return ch, corrected_time
 
     try:
-        with open(input_file, "rb") as f:
-            longwords = read_longwords(f)
+        with open(infile, "rb") as fin:
+            longwords = read_longwords(fin)
 
-            for dataword in longwords:
-                # The first longword should be an epoch (no msb)
-                if dataword & 0x80000000:
-                    print("# WARNING: WRONG STRUCTURE (0) - HIT FOUND")
-                    continue
+            # Open the output file if provided, otherwise use None
+            fout = open(outfile, "w") if outfile else None
 
-                # Process epoch
-                epoc_raw, epoc_diff, first_hit = process_epoch(
-                    dataword, epoc_raw, first_hit
-                )
+            try:
+                for dataword in longwords:
+                    # The first longword should be an epoch (no msb)
+                    if dataword & 0x80000000:
+                        if verbose:
+                            print("# WARNING: WRONG STRUCTURE (0) - HIT FOUND")
+                        continue
 
-                if first_hit:
-                    continue
-
-                mode = "Unknown period"
-                if dlm_period * 0.95 < epoc_diff <= dlm_period * 1.05:
-                    mode = "Single period"
-                elif 2 * dlm_period * 0.95 < epoc_diff <= 2 * dlm_period * 1.05:
-                    mode = "Long period"
-
-                # Read and process the first hit
-                dataword = next(longwords)
-                if not (dataword & 0x80000000):
-                    raise ValueError("Wrong structure: EPOC found")
-
-                ch_a, hit_a = process_hit(dataword)
-
-                # Read and process the second hit
-                dataword = next(longwords)
-
-                if not (dataword & 0x80000000):
+                    # Process epoch
                     epoc_raw, epoc_diff, first_hit = process_epoch(
                         dataword, epoc_raw, first_hit
                     )
+
+                    if first_hit:
+                        continue
+
+                    if dlm_period * 0.95 < epoc_diff <= dlm_period * 1.05:
+                        mode = "Single"
+                    elif (
+                        2 * dlm_period * 0.95
+                        < epoc_diff
+                        <= 2 * dlm_period * 1.05
+                    ):
+                        mode = "Long"
+                    else:
+                        mode = "Unknown"
+
+                    # Read and process the first hit
+                    dataword = next(longwords)
+                    if not (dataword & 0x80000000):
+                        raise ValueError("Wrong structure: EPOC found")
+
+                    ch_a, hit_a = process_hit(dataword)
+
+                    # Read and process the second hit
                     dataword = next(longwords)
 
-                ch_b, hit_b = process_hit(dataword, lut_ft)
+                    if not (dataword & 0x80000000):
+                        epoc_raw, epoc_diff, first_hit = process_epoch(
+                            dataword, epoc_raw, first_hit
+                        )
+                        dataword = next(longwords)
 
-                if ch_a == ch_b:
-                    delta_t = hit_b - hit_a
-                    if delta_t < 0:
-                        delta_t += EPOC_UNIT
-                    print(f"{ch_a:2} {delta_t:11.5f} ", end="")
-                    print(mode)
-                else:
-                    raise ValueError("Channel mixup detected")
+                    ch_b, hit_b = process_hit(dataword)
+
+                    if ch_a == ch_b:
+                        delta_t = hit_b - hit_a
+                        if delta_t < 0:
+                            delta_t += EPOC_UNIT
+                        output_line = f"{ch_a:2} {delta_t:11.5f} {mode}"
+                        if fout:
+                            fout.write(output_line + "\n")
+                        else:
+                            print(output_line)
+                    else:
+                        raise ValueError("Channel mixup detected")
+
+            except StopIteration:
+                if verbose:
+                    print("# End of file reached")
+
+            finally:
+                if fout:
+                    fout.close()
+        if verbose:
+            print("\nUnpacking completed successfully.")
 
     except FileNotFoundError as e:
         print(f"Error: {e}")
@@ -240,3 +297,44 @@ def unpack_dlm_data(cal_file: str, input_file: str, period: int = 128) -> None:
     except ValueError as e:
         print(f"Error: {e}")
         raise
+
+
+# def analyze_fine_time(
+#     infile: str, mean_expected: int, outfile: str = None, verbose: bool = False
+# ) -> None:
+#     """
+#     Analyzes fine time data from an input file.
+
+#     Args:
+#         infile (str): Path to the input file containing fine time data.
+#         mean_expected (int): Expected number of hits per mean value.
+#         outfile (str): Path to the output file. If None, prints to stdout.
+#         verbose (bool): If True, prints debug information.
+
+#     Raises:
+#         ValueError: If input parameters are invalid or data is inconsistent.
+#     """
+#     if mean_expected <= 0:
+#         raise ValueError("Mean expected must be greater than 0.")
+
+#     try:
+#         # Load the input file into a pandas DataFrame
+#         df = pd.read_csv(
+#             infile,
+#             sep="\s+",
+#             header=None,
+#             names=["Channel", "Delay", "Period"],
+#             usecols=["Channel", "Delay"],  # Only parse the first two columns
+#             dtype={"Channel": int, "Delay": float},
+#         )
+
+#         if verbose:
+#             print(f"Loaded {len(df)} rows from {infile}.")
+
+#         # Open the output file if provided, otherwise use stdout
+#         fout = open(outfile, "w") if outfile else None
+
+#     except FileNotFoundError:
+#         raise FileNotFoundError(f"Input file '{infile}' not found.")
+#     except Exception as e:
+#         raise ValueError(f"Error processing file: {e}")

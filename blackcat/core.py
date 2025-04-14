@@ -2,12 +2,12 @@ import time
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict
-from blackcat.base_objects import BaseTDC
+from blackcat.base_objects import BaseDevice
 from blackcat.utils import run_shell_script, UDPListener, USBReader
 from blackcat.data_processing import process_raw_cal
 
 
-class BlackCat(BaseTDC):
+class BlackCat(BaseDevice):
     """This class is hopefully helpful to use the BlackCat system.
     With methods implemented for this object, you can setup the
     system, run calibration measurements, run round-trip link delay
@@ -89,10 +89,6 @@ class BlackCat(BaseTDC):
             logger=self.logger,
             process_name="CALIBRATION",
         )
-
-        # Process the raw calibration files
-        self.logger.debug("CALIBRATION: Processing raw calibration files...")
-        self.process_raw_calibration(verbose=verbose)
         self.logger.info("CALIBRATION: DONE.")
 
     def process_raw_calibration(self, verbose: bool = False) -> None:
@@ -117,21 +113,23 @@ class BlackCat(BaseTDC):
         # Make sure a 'calibration' folder exists. We put there the output
         # calibration files.
         cal_path = self.save_path / self.config["calibration"]["out_dir"]
-        cal_path.mkdir(exist_ok=True)
+        if not cal_path.exists():
+            raise FileNotFoundError(
+                f"CALIBRATION: The expected calibration directory does not exist: {cal_path}"
+            )
         self.logger.debug(
-            f"CALIBRATION: Created calibration directory: {cal_path}"
+            f"CALIBRATION: Using existing calibration directory: {cal_path}"
         )
 
-        if verbose:
-            self.logger.debug(
-                "CALIBRATION: Get human readable calibration files."
-            )
+        self.logger.info("CALIBRATION: Get human readable calibration files.")
 
         tdc_ids = self.config["setup"]["tdc_ids"].split()
+        print("\n############################################################")
         for id in tdc_ids:
             raw_cal_file = cal_path / f"rc_{id}"
             cal_file = cal_path / f"tdc_cal_{id}"
-            process_raw_cal(raw_cal_file, cal_file)
+            process_raw_cal(raw_cal_file, cal_file, verbose=verbose)
+        print("############################################################\n")
 
     def setup_and_calibrate(self, verbose: bool = False) -> None:
         """Run self.setup() and self.calibrate() one after the other.
@@ -401,22 +399,27 @@ class BlackCat(BaseTDC):
             raise RuntimeError(f"DOG DISCOVER: command failed: {e.stderr}")
 
 
-class USBTDC(BaseTDC):
+class USBDevice(BaseDevice):
     """
-    A class to interact with an external TDC device.
+    A class to interact with an external device connected via a USB serial port.
     """
 
     def __init__(
         self,
-        config_file: str,
         device: str,
+        config_file: Optional[str] = None,
         save_path: Optional[str] = None,
         logging_level: str = "INFO",
     ) -> None:
         super().__init__(config_file, save_path, logging_level)
 
+        """
+        Args:
+            device (str): Path to the USB device (e.g., `/dev/ttyUSB0`).
+        """
+
         self.device: str = Path(device).as_posix()
-        self.name: str = Path(device).name
+        self._name: str = Path(device).name
         self.logger.info(f"{self.device}: Initialized.")
 
     @property
@@ -474,7 +477,7 @@ class USBTDC(BaseTDC):
             out_file = self.save_path / f"data_{self.name}_{outfile_suffix}.bin"
 
         self.logger.info(
-            f"{self.name} READ: Starting USB reading to {out_file}..."
+            f"{self.name} USB_READER: Starting USB reading to {out_file}..."
         )
         self.usb_reader = USBReader(
             device=self.device,
@@ -489,10 +492,10 @@ class USBTDC(BaseTDC):
         Stops the USB reading process.
         """
         if self.usb_reader:
-            self.logger.info(f"{self.name} READ: Stopping USB reading...")
+            self.logger.info(f"{self.name} USB_READER: Stopping USB reading...")
             self.usb_reader.stop()
             self.usb_reader = None
         else:
             self.logger.warning(
-                f"{self.device} READ: No USB reading process to stop."
+                f"{self.device} USB_READER: No USB reading process to stop."
             )

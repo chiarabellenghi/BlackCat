@@ -6,9 +6,12 @@ from blackcat.logger import configure_logging
 from blackcat.utils import get_default_config_path
 
 
-class BaseTDC:
+class BaseDevice:
     """
-    A base class for shared functionality between TDC devices.
+    A base class for external devices.
+
+    This class provides common attributes (e.g., configuration file, save path, logging)
+    and enforces the presence of a `setup()` method in derived classes.
     """
 
     DEFAULT_SAVE_PATH = "./data"
