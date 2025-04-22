@@ -81,9 +81,9 @@ fi
 log "Disabling DLMs (delay link measurements)..."
 dog -b write 0xff000000 136 0x00800000
 
-# set DLM frequency (6.666ms) and ticker mark (77)
+# set DLM frequency (10ms) and ticker mark (77)
 log "Setting DLM frequency and ticker mark..."
-dog -b write 0xff000000 135 0x4d065b9b
+dog -b write 0xff000000 135 0x4d098968
 
 # TX enable for DLMs (non-ROOT modules)
 log "Enabling transmission for DLM..."
@@ -125,6 +125,3 @@ if [ "$VERBOSE" -eq 1 ]; then
     dog -b read 0xfe000002 142
     dog -b read 0xfe000002 143
 fi
-
-# enable DLMs
-#dog -b write 150 136 0x80800000

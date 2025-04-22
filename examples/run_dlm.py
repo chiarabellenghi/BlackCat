@@ -10,9 +10,8 @@ if __name__ == "__main__":
         "--config-file",
         "-c",
         type=str,
-        default="/home/trbnet/pone-crate/chiara/blackcat/config.cfg",
-        help="Path to the configuration file. "
-        "Default is /home/trbnet/pone-crate/chiara/blackcat/config.cfg.",
+        default=None,
+        help="Path to the configuration file. If None, uses the default one.",
     )
     parser.add_argument(
         "--calibration",
@@ -30,13 +29,11 @@ if __name__ == "__main__":
         "If not set, measurement will run until interrupted manually.",
     )
     parser.add_argument(
-        "--subdir",
+        "--save_dir",
         "-sd",
         type=str,
         default=None,
-        help="Subdirectory for saving data. This is appended to the save path "
-        "defined in the config file. It can be useful when running multiple "
-        "measurements requiring a calibration each.",
+        help="Directory for saving data. If None it defaults to './data'",
     )
     parser.add_argument(
         "--outfile_suffix",
@@ -59,7 +56,7 @@ if __name__ == "__main__":
 
     # Initialize BlackCat object
     print("\nInitialize BlackCat")
-    blackcat = BlackCat(args.config_file, args.subdir)
+    blackcat = BlackCat(args.config_file, args.save_dir)
 
     # Run setup and calibration (if specified)
     if args.calibration:

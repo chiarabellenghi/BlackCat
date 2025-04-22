@@ -47,7 +47,7 @@ fi
 # Log the EXT_DEVICE value if verbose mode is enabled
 log "Using EXT_DEVICE: $EXT_DEVICE"
 
-# Run mystery command
+# Configures the serial port using the stty command
 log "Setting up the connection to the external device..."
 stty -F "$EXT_DEVICE" 115200 cs8 -cstopb -parenb -icrnl -ixon -ixoff -opost -isig -icanon -echo
 
@@ -57,7 +57,6 @@ sleep 1
 # Power-ON Reset
 echo 'ATS0=30000000' > "$EXT_DEVICE"
 # Write config registers
-#echo 'ATS1=FF0F5540' > "$EXT_DEVICE"
 echo 'ATS1=FF0F1540' > "$EXT_DEVICE"
 echo 'ATS0=80000004' > "$EXT_DEVICE"
 echo 'ATS1=0D03C053' > "$EXT_DEVICE"

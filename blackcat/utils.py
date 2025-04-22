@@ -1,8 +1,17 @@
 import subprocess
 import logging
+from pathlib import Path
+from importlib.resources import files
 from typing import List, Optional
 import socket
 import threading
+
+
+def get_default_config_path() -> Path:
+    """
+    Retrieve the path to the default config file included in the package.
+    """
+    return files("blackcat").joinpath("config.cfg")
 
 
 def run_shell_script(
