@@ -17,6 +17,7 @@ dev = [
     "pytest>=8.3.5",
     "pytest-mock>=3.14.0",
     "ruff>=0.11.5",
+    "notebook>=7.4.0",
 ]
 dogma = ["dogma @ git+ssh://git@git.gsi.de/ee-dig/dogma/soft/dogma.git"]
 

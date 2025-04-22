@@ -1,0 +1,459 @@
+DOGMA IO registers (internal)
+=============================
+
+0x0000 - 0x000f     0  system single shot registers 
+0x0010 - 0x001f    16  system status registers
+0x0020 - 0x003f    32  system control registers
+0x0040 - 0x007f    64  user status registers
+0x0080 - 0x009f   128  user control registers
+0x1000           4096  SPI controller
+0x1001           4097  I2C controller
+0x1002           4098  SPI user controller
+
+==============================================================
+== System single shot (OFFSET = 0, 1-16 Registers)
+==============================================================
+
+Offset 0[0]    D[31]    reboot FPGA
+               D[30]    snapshot frame counters
+               D[29]    snapshot DLM counters
+               D[28:2]  ---
+               D[1]     warm reset
+               D[0]     cold reset
+
+Offset 1[1]    D[31:28] PCSD select, bit coded
+               D[27:24] PCSC select, bit coded
+               D[23:20] PCSB select, bit coded
+               D[19:16] PCSA select, bit coded
+               D[15:0]  GbE FlowControl Pause value
+
+               Remark: BlackCat specific
+
+Offset 2[2]    D[31]    ---
+               D[30]    DLM push start (T)
+               D[29]    SCC FIFO reset (T)
+               D[28]    phase measurement channel write (T)
+               D[27:22] ---
+               D[21]    store reset DLM value (T) - only in Mainz systems
+               D[20]    store trigger DLM value (T) - only for Mainz systems
+               D[19]    ---
+               D[18]    TRG write (T)
+               D[17]    SCC start (T)
+               D[16]    SCC data write (T)
+               D[15:8]  ---
+               D[7:0]   SCC/TRG data
+
+               Remark: BlackCat specific
+
+==============================================================
+== System Status (OFFSET = 16, 8 fixed + 1-8 Registers)
+==============================================================
+
+Offset 16[0]   D[31:0]  UID of board, MSB
+
+Offset 17[1]   D[31:0]  UID or board, LSB
+
+Offset 18[2]   D[31:28] ---
+               D[27:16] hardware type
+               D[15:12] ---
+               D[11:0]  firmware type
+
+Offset 19[3]   D[31:0]  compilation date
+
+
+Offset 20[4]   D[31:24] --
+               D[23:16] die temperature (only ECP5)
+               D[15:12] --
+               D[11:0]  temperature sensor value
+
+Offset 21[5]   D[31]    flash select line status (only TOMcat)
+               D[30:0]  ---
+
+Offset 22[6]   D[31:24] ---
+               D[23:0]  Autoconfig ROM offset in FlashROM
+
+Offset 23[7]   D[31:24] ---
+               D[23:0]  Autoconfig ROM max length in FlashROM
+
+==============================================================
+== System control (OFFSET = 32, 1-32 Registers)
+==============================================================
+
+Offset 32[0]   D[31:0]  DOGMA address (unicast)
+
+Offset 33[1]   D[31:0]  DOGMA address (multicast by address, 0xfdXXXXXX)
+
+Offset 34[2]   D[31:0]  DOGMA address (multicast 2 by bits, 0xfeXXXXXX)
+
+Offset 35[3]   D[31:0]  fixed IP address, in case DHCP is disabled
+
+Offset 36[4]   D[31]    DHCP disable
+               D[30]    LEDs off
+               D[29]    200MHz oscillator on (only TOMcat)
+               D[28]    debug GPIO enable (selected boards)
+               D[27]    FlashROM select (normal/GoldenImage, only TOMcat)
+               D[26]    ---
+               D[25]    auxiliary SFP0 on (only P-ONE backplane)
+               D[24]    auxiliary SFP1 on (only P-ONE backplane)
+               D[23:17] ---
+               D[16]    timing test select (only TOMcat)
+               D[15:0]  timeout for IO control buffer full
+
+Offset 37[5]   D[31:16] MTU (MAC level for frame handling)
+               D[15:0]  payload size (this is NOT the MTU) for GbE core frames
+
+
+==============================================================
+== User Status (OFFSET = 64, 1-64 Registers)
+==============================================================
+
+Offset 64[0]   D[31:16] master port list, bit coded
+               D[15:0]  slave port list, bit coded
+               
+               Remark: MSB is D3, LSB is A0
+
+Offset 65[1]   D[31:16] LAM port list, bit coded
+               D[15:0]  active port list, bit coded
+
+Offset 66[2]   D[31:28] SerDes channel
+               D[27:0]  frame counters (first read received frames, second read dropped frames)
+               FIFO
+
+               Remark: frame counters need to be snapshoted first!
+                       SerDes 0 = A0, SerDes 1 = A1, ..., SerDes 15 = D3
+
+Offset 67[3]   D[31:28] SerDes channel
+               D[27:0]  DLM counters
+               FIFO
+
+               Remark: DLM counters need to be snapshoted first!
+                       SerDes 0 = A0, SerDes 1 = A1, ..., SerDes 15 = D3
+
+Offset 68[4]   D[31:16] ---
+               D[15:8]  current random number
+               D[7:0]   latched random number
+
+Offset 69[5]   D[31]    clock select status (0 = onboard, 1 = local)
+               D[30:28] ---
+               D[27]    PLL (local 10MHz) locked
+               D[26]    PLL (onboard 125MHz) locked
+               D[25:12] ---
+               D[11]    ROOT module
+               D[10:6]  ---
+               D[5]     UART included
+               D[4]     FWDB included
+               D[3]     FWDA included
+               D[2]     DOGMA included
+               D[1]     PING included
+               D|0]     ARP included
+
+Offset 70[6]   D[31:0]  ---
+            
+Offset 71[7]   D[31]    input status
+               D[30:9]  hit counter
+
+Offset 72[8]   D[31]    calibration done
+               D[30:29] ---
+               D[28:20] address
+               D[19:18] ---
+               D[17:0]  bin entries
+               FIFO
+
+==============================================================
+== User Control (OFFSET = 128, 1-32 Registers)
+==============================================================
+
+Offset 128[0]  D[31:28] PCSD WordSync disable, bitcoded
+               D[27:24] PCSC WordSync disable, bitcoded
+               D[23:20] PCSB WordSync disable, bitcoded
+               D[19:16] PCSA WordSync disable, bitcoded
+               D[15:12] PCSD DLM TX enable, bitcoded
+               D[11:8]  PCSC DLM TX enable, bitcoded
+               D[7:4]   PCSB DLM TX enable, bitcoded
+               D[3:0]   PCSA DLM TX enable, bitcoded
+
+Offset 129[1]  D[31:24] ---
+               D[23:16] ---
+               D[15:12] PCSD data link disable, bit coded
+               D[11:8]  PCSC data link disable, bit coded
+               D[7:4]   PCSB data link disable, bit coded
+               D[3:0]   PSCA data link disable, bit coded
+
+Offset 130[2]  D[31:28] PCSB3 WAP setting
+               D[27:23] PCSB2 WAP setting
+               D[23:20] PCSB1 WAP setting
+               D[19:16] PCSB0 WAP setting
+               D[15:12] PCSA3 WAP setting
+               D[11:8]  PCSA2 WAP setting
+               D[7:4]   PCSA1 WAP setting
+               D[3:0]   PCSA0 WAP setting
+
+Offset 131[3]  D[31:28] PCSD3 WAP setting
+               D[27:23] PCSD2 WAP setting
+               D[23:20] PCSD1 WAP setting
+               D[19:16] PCSD0 WAP setting
+               D[15:12] PCSC3 WAP setting
+               D[11:8]  PCSC2 WAP setting
+               D[7:4]   PCSC1 WAP setting
+               D[3:0]   PCSC0 WAP setting
+
+Offset 132[4]  D[31:28] ---
+               D[27:16] VLAN ID A
+               D[15:12] ---
+               D[11:0]  VLAN ID B
+
+Offset 133[5]  D[31]    enable TDC
+               D[30]    TDC control select (0 = SC, 1 = DMS)
+               D[29]    TDC pusher enable
+               D[28]    random select (0 = use register, 1 = random)
+               D[27:20] TDC multiplexer block size
+               D[19:16] TDC input select
+               D[15:13] ---
+               D[12]    reset FIFO
+               D[11]    reset HC (hit counter)
+               D[10]    reset ECC (epoc and coarse time counter)
+               D[9]     reset interface
+               D[8]     reset TDC core
+               D[7:6]   ---
+               D[5:4]   calibration select (00 = input, 01 = GND, 10 = inverted cal, 11 = cal)
+               D[3]     start TDC calibration
+               D[2]     stretcher enable (0 = off, 1 = on)
+               D[1]     edge select (0 = RE + FE, 1 = RE only)
+               D[0]     invert input (0 = normal, 1 = inverted)
+
+Offset 134[6]  D[31:8]  ---
+               D[7]     SerDes reset enable
+               D[6]     SerDes loopback enable
+               D[5]     SerDes local/remote loopback (0 = local, 1 = remote)
+               D[4]     SerDes loopback on/off (0 = off, 1 = on)
+               D[3:2]   QUAD select (0 = A, 1 = B, 2 = C, 3 = D)
+               D[1:0]   PCS number
+
+Offset 135[7]  D[31:24] DLM marker setting (0 = off)
+               D[23:0]  DLM ticker period [16ns]
+            
+Offset 136[8]  D[31]    enable DLM ticker
+               D[30]    enable DLM trigger
+               D[29]    enable external DLM trigger
+               D[28]    select internal payload (only in Mainz systems)
+               D[27:16] SCC period
+               D[15:0]  ---
+
+Offset 137[9]  D[31:16] ---
+               D[15:0]  UART divisor value
+
+Offset 138[10] D[31:0]  UART destination MAC (LSB)
+
+Offset 139[11] D[31:16] UART destination port
+               D[15:0]  UART destination MAC (MSB)
+
+Offset 140[12] D[31:0]  UART destination IP
+
+Offset 141[13] D[31:0]  Forwarder 0 destination MAC (LSB)
+
+Offset 142[14] D[31:16] Forwarder 0 destination port
+               D[15:0]  Forwarder 0 destination MAC (MSB)
+
+Offset 143[15] D[31:0]  Forwarder 0 destination IP
+
+Offset 144[13] D[31:0]  Forwarder 1 destination MAC (LSB)
+
+Offset 145[14] D[31:16] Forwarder 1 destination port
+               D[15:0]  Forwarder 1 destination MAC (MSB)
+
+Offset 146[15] D[31:0]  Forwarder 1 destination IP
+
+Offset 147[16] D[31:0]  scratch pad register
+
+Offset 148[20] D[31:0]  ---
+
+Offset 149[21] D[31:0]  ---
+
+Offset 150[22] D[31:0]  ---
+
+Offset 151[23] D[31:0]  ---
+
+Offset 152[24] D[31:0]  ---
+
+Offset 153[25] D[31:0]  ---
+
+Offset 154[26] D[31:0]  ---
+
+Offset 155[27] D[31:0]  ---
+
+Offset 156[28] D[31:0]  ---
+
+Offset 157[29] D[31:0]  ---
+
+Offset 158[30] D[31:0]  ---
+
+Offset 159[31] D[31:0]  ---
+
+==============================================================
+== Special registers
+==============================================================
+
+Offset 4096 -- FlashROM SPI Controller
+
+Offset 4097 -- I2C Controller
+
+Offset 4098 -- SPI Controller
+
+
+==============================================================
+== DLM payload usage
+==============================================================
+
+The 8bit payload of DLM is divided into tags and commands by D[7]: if set, treat as
+command byte, if cleared, treat as tag.
+
+The following byte definition is implemented:
+
+0x00 ... 0x7f    tags
+0x80 ... 0xcf    reserved
+0xd0 ... 0xd3    TDC mode select (0 = OFF, 1 = HIT, 2 = CAL, 3 = reserved)
+0xd4 ... 0xdd    reserved
+0xde             TDC FIFO reset
+0xdf             TDC counter reset
+0xe0 ... 0xef    reserved
+0xf0             (SPD) Start of Packet Delimiter [DO NOT USE]
+0xf1             (EPD) End of Packet Delimiter [DO NOT USE]
+0xf2 ... 0xfc    reserved
+0xfd             reboot (has to be sent four times)
+0xfe             warm reset (has to be sent four times)
+0xff             cold reset (has to be sent four times)
+
+==============================================================
+== DMS structure
+==============================================================
+
+SPD   0xf0
+M0    MAC0
+M1    MAC1
+M2    MAC2
+M3    MAC3
+M4    MAC4
+M5    MAC5
+CMD   D[7:4] command, D[3] = CRC ignore, D[2:0] = D[10:8] of length
+LEN   D[7:0] length
+PL    n x byte (determined by length[11:0])
+CRCH
+CRCL
+EPD   0xf1
+
+CRC used is CRC-16/CCITT-FALSE (polynom 0x1021, init value 0xffff)
+
+Commands defined:
+
+0x0  NOP (do nothing)
+0x1  --
+0x2  --
+0x3  --
+0x4  --
+0x5  --
+0x6  --
+0x7  --
+0x8  --
+0x9  --
+0xa  --
+0xb  --
+0xc  --
+0xd  REBOOT
+0xe  WARM_RESET
+0xf  COLD_RESET
+
+==============================================================
+== TDC data format
+==============================================================
+TDC main clock is 340MHz, one coarse time bin is 2.941ns.
+
+D[31]     0 = EPOC, 1 = HIT
+D[30:0]   depends D[31]
+
+EPOC format
+D[31]     0
+D[30:28]  ---
+D[27:0]   EPOC counter 
+
+HIT format
+D[31]     1
+D[30:26]  ---
+D[25:22]  channel number (0 = A0, 1 = A1, ... 13 = D1, 14 = test signal, 15 = silence)
+D[21]     LSB coarse time
+D[20:12]  fine time (encoded, see below)
+D[11]     edge notifier (1 = rising, 0 = falling)
+D[10:0]   MSB coarse time (see D[21])  
+
+Fine time is taken from TDL, encoded. For simple calibration, take the lowest and highest bin of 
+fine time with entries, and divide coarse time bin unit by number of used bins.
+This is a rough approximation.
+Numbers depend on placement inside FPGA, and also temperature.
+Usual numbers are 30 for low and 300 for high bin.
+Nominal bin width is about 11ps.
+
+Take care when operating the TDC in C mode: it is *your* responsibility to deactivate the TDC when 
+changing the input channel on the multiplexer. If not handled correctly, glitches may cause false triggering.
+
+==============================================================
+== PCS usage
+==============================================================
+
+        POM   POS   GBE   CM    CS    MM    MS
+-------------------------------------------------
+A0   0  MST   SLV   MST   MST   SLV   MST   SLV
+A1   1  MST   ---   MST   MST   ---   MST   ---
+A2   2  VLA   VLA   MST   MST   ---   MST   ---
+A3   3  VLB   VLB   MST   MST   ---   MST   ---
+-------------------------------------------------
+B0   4  ---   MST   MST   MST   MST   MST   MST
+B1   5  ---   MST   MST   MST   MST   MST   MST
+B2   6  ---   MST   VLA   MST   MST   MST   MST
+B3   7  ---   MST   VLB   ---   MST   ---   MST
+-------------------------------------------------
+C0   8  ---   MST   MST   MST   MST   MST   MST
+C1   9  ---   MST   MST   MST   MST   MST   MST
+C2  10  ---   MST   MST   ---   MST   ---   MST
+C3  11  ---   MST   MST   ---   MST   ---   MST
+-------------------------------------------------
+D0  12  SLV   MST   SLV   SLV   MST   SLV   VLA
+D1  13  MST   MST   MST   MST   MST   MST   VLB
+D2  14  ---   ---   ---   ---   ---   ---   ---
+D3  15  ---   ---   ---   ---   ---   ---   ---
+-------------------------------------------------
+
+
+==============================================================
+== SerDes locations (TRB3sc1 + 8port addon)
+==============================================================
+
+      +----+  +----+  +----+  +----+  +----+  +----+
+      | C2 |  | C3 |  | C0 |  | C1 |  | B0 |  | B1 |
+  +---+----+--+----+--+----+--+----+--+----+--+----+---+
+  +---------------------------+----+--+----+-----------+
+         +----+   +----+      | B3 |  | B2 |
+         | D1 |   | D0 |      +----+  +----+
+  +------+----+---+----+-------------------------------+
+  +----------------------------------------------------+
+
+
+==============================================================
+== SerDes locations (TRB3sc1 + 6port addon)
+==============================================================
+
+      +----+  +----+  +----+  +----+  +----+  +----+
+      | C2 |  | C3 |  | C0 |  | C1 |  | B0 |  | B1 |
+  +---+----+--+----+--+----+--+----+--+----+--+----+---+
+  +----------------------------------------------------+
+         +----+   +----+
+         | D1 |   | D0 |
+  +------+----+---+----+-------------------------------+
+  +----------------------------------------------------+
+
+
+==============================================================
+== SerDes locations (TRB3sc crate system)
+==============================================================
+
+  [ A0 | A1 | A2 | A3 | MST | C0 | B2 | B1 | B0 | C1 ]
+
+

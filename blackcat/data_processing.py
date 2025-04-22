@@ -137,7 +137,7 @@ def read_longwords(file: BinaryIO) -> Generator[int, None, None]:
 def unpack_dlm_data(
     cal_file: str,
     infile: str,
-    period: int = 6666666,
+    period: int = 10000000,
     outfile: str = None,
     verbose: bool = False,
 ) -> None:
@@ -147,7 +147,7 @@ def unpack_dlm_data(
     Args:
         cal_file (str): Path to the calibration file.
         input_file (str): Path to the binary input file.
-        period (int): Period between DLMs in [ns].
+        period (int): Period between DLMs in [ns]. Defaults to 10ms.
         outfile (str): Path to the output file. If None, prints to stdout.
         verbose (bool): If True, prints additional information during
             processing.
