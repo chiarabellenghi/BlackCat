@@ -1,4 +1,5 @@
 import time
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict
@@ -21,6 +22,21 @@ class BlackCat(BaseDevice):
         logging_level: str = "INFO",
     ) -> None:
         super().__init__(config_file, save_path, logging_level)
+
+        # Check if DOGMA_BROADCAST_ADDRESS is already set
+        if "DOGMA_BROADCAST_ADDRESS" not in os.environ:
+            os.environ["DOGMA_BROADCAST_ADDRESS"] = self.config["setup"][
+                "broadcast_address"
+            ]
+            print(
+                "DOGMA_BROADCAST_ADDRESS was not set. Setting it to:",
+                os.environ["DOGMA_BROADCAST_ADDRESS"],
+            )
+        else:
+            print(
+                "DOGMA_BROADCAST_ADDRESS is already set to:",
+                os.environ["DOGMA_BROADCAST_ADDRESS"],
+            )
 
         self.listeners: Optional[Dict[str, UDPListener]] = None
 

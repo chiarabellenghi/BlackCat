@@ -57,7 +57,6 @@ sleep 1
 # Power-ON Reset
 echo 'ATS0=30000000' > "$EXT_DEVICE"
 # Write config registers
-#echo 'ATS1=FF0F5540' > "$EXT_DEVICE"
 echo 'ATS1=FF0F1540' > "$EXT_DEVICE"
 echo 'ATS0=80000004' > "$EXT_DEVICE"
 echo 'ATS1=0D03C053' > "$EXT_DEVICE"
