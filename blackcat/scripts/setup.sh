@@ -40,8 +40,10 @@ log() {
 }
 
 # Read TOMcat and TDC IDs from the [setup] section of the configuration file
-TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
-TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
+# TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
+# TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
+TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | cut -d '=' -f2-)
+TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | cut -d '=' -f2-)
 
 if [ -z "$TOMCAT_IDS" ] || [ -z "$TDC_IDS" ]; then
     echo "Error: TOMcat or TDC IDs not found in the configuration file."
@@ -50,6 +52,10 @@ fi
 
 log "TOMcat IDs: $(echo $TOMCAT_IDS | tr '\n' ' ')"
 log "TDC IDs: $(echo $TDC_IDS | tr '\n' ' ')"
+
+# Convert strings to space-separated ID lists
+TOMCAT_IDS=$(echo "$TOMCAT_IDS_LINE" | xargs)
+TDC_IDS=$(echo "$TDC_IDS_LINE" | xargs)
 
 # address setup: we assign TOMcat bit 0 in multicast2 mode
 log "Setting up TOMcat addresses..."

@@ -1,13 +1,19 @@
-################################################################################
-# This file contains the Python implementation of a bunch of utility C-scripts
-# written by Michael Boehmer for the BlackCat project. They are meant to allow
-# the user to unpack and process binary files and output human-readable data.
-# Apologies for the large amount of hard-coded numbers. These are just meant as
-# utility scripts. Feel free to write your own version of these functions.
-################################################################################
+"""
+Contains the Python implementation of a bunch of utility C-scripts.
+
+They are meant to allow the user to unpack and process binary files and output
+human-readable data.
+Apologies for the large amount of hard-coded numbers. These are just meant as
+utility scripts. Feel free to write your own version of these functions.
+
+(C-code originally by Michael Boehmer for the BlackCat project).
+"""
+
+from collections.abc import Generator
+from typing import BinaryIO
+
 import numpy as np
 import pandas as pd
-from typing import Generator, BinaryIO
 
 # Period of one ref clock cycle of TDC in ps
 TDC_FREQ = 340.0
@@ -18,8 +24,9 @@ EPOC_UNIT = 4096.0 * 1000.0 / TDC_FREQ
 
 
 def process_raw_cal(infile: str, outfile: str, verbose: bool = False) -> None:
-    """
-    Processes a raw calibration file and generates a calibration data file.
+    """Process a raw calibration file.
+
+    Generates a human-readable calibration data file.
 
     Args:
         infile (str): Path to the input raw calibration file.
@@ -34,7 +41,7 @@ def process_raw_cal(infile: str, outfile: str, verbose: bool = False) -> None:
         entries = np.zeros(BLOCK_RAM_SIZE, dtype=int)
 
         # First pass: Read input file and calculate sum and raw_bin
-        with open(infile, "r") as fin:
+        with open(infile) as fin:
             for line in fin:
                 value = int(line.strip(), 0)
                 # Extract bits 20-28 from value and shift them to the
@@ -77,16 +84,17 @@ def process_raw_cal(infile: str, outfile: str, verbose: bool = False) -> None:
 
 
 def load_calibration_file(cal_file: str) -> pd.DataFrame:
-    """
-    Loads the calibration file into a pandas DataFrame and validates the number of bins.
+    """Load the calibration file into a pandas DataFrame.
 
     Args:
         cal_file (str): Path to the calibration file.
 
-    Returns:
+    Returns
+    -------
         pd.DataFrame: DataFrame containing the calibration data.
 
-    Raises:
+    Raises
+    ------
         ValueError: If the number of bins is incorrect.
         FileNotFoundError: If the file is invalid.
     """
@@ -115,16 +123,17 @@ def load_calibration_file(cal_file: str) -> pd.DataFrame:
 
 
 def read_longwords(file: BinaryIO) -> Generator[int, None, None]:
-    """
-    Reads 4-byte longwords from the file and yields them as integers.
+    """Read 4-byte longwords from the file and yield them as integers.
 
     Args:
         file (BinaryIO): The binary file to read from.
 
-    Yields:
+    Yields
+    ------
         int: The next 4-byte longword as an integer.
 
-    Raises:
+    Raises
+    ------
         EOFError: If fewer than 4 bytes are read.
     """
     while True:
@@ -141,8 +150,7 @@ def unpack_dlm_data(
     outfile: str = None,
     verbose: bool = False,
 ) -> None:
-    """
-    Unpacks DLM data from a binary file using a calibration file.
+    """Unpack DLM data from a binary file using a calibration file.
 
     Args:
         cal_file (str): Path to the calibration file.
@@ -177,10 +185,10 @@ def unpack_dlm_data(
     first_hit = True
 
     def process_epoch(dataword: int, epoc_raw: int, first_hit: bool):
-        """
-        Processes an epoch word and calculates the epoch difference.
+        """Process an epoch word and calculates the epoch difference.
 
-        Returns:
+        Returns
+        -------
             Tuple[int, float, bool]: Updated epoc_raw_old, epoch difference in
                 ns, and first_hit flag.
         """
@@ -199,10 +207,10 @@ def unpack_dlm_data(
         return epoc, epoc_diff, first_hit
 
     def process_hit(dataword: int):
-        """
-        Processes a hit word and calculates the corrected time.
+        """Process a hit word and calculates the corrected time.
 
-        Returns:
+        Returns
+        -------
             Tuple[int, float]: The channel number and corrected time.
         """
         ch = (dataword & 0x1FC00000) >> 22
@@ -218,11 +226,11 @@ def unpack_dlm_data(
         return ch, corrected_time
 
     try:
-        with open(infile, "rb") as fin:
+        with (
+            open(infile, "rb") as fin,
+            open(outfile, "w") if outfile else None as fout,
+        ):
             longwords = read_longwords(fin)
-
-            # Open the output file if provided, otherwise use None
-            fout = open(outfile, "w") if outfile else None
 
             try:
                 for dataword in longwords:

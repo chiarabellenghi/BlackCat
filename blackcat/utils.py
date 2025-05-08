@@ -1,26 +1,25 @@
-import subprocess
+"""Utility functions used across the BlackCat project."""
+
 import logging
-from pathlib import Path
-from importlib.resources import files
-from typing import List, Optional
 import socket
+import subprocess
 import threading
+from importlib.resources import files
+from pathlib import Path
 
 
 def get_default_config_path() -> Path:
-    """
-    Retrieve the path to the default config file included in the package.
-    """
+    """Retrieve the path to the default config file included in the package."""
     return files("blackcat").joinpath("config.cfg")
 
 
 def run_shell_script(
     script_path: str,
-    arguments: Optional[List[str]] = None,
-    logger: Optional[logging.Logger] = None,
+    arguments: list[str] | None = None,
+    logger: logging.Logger | None = None,
     process_name: str = "",
 ) -> None:
-    """Runs a shell script and logs its output in real-time.
+    """Run a shell script and logs its output in real-time.
 
     Arguments
     ---------
@@ -114,11 +113,10 @@ class UDPListener:
         self,
         port: int,
         out_file: str,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         process_name: str = "UDP_LISTENER",
     ):
-        """
-        Initializes the UDPListener instance.
+        """Initialize the UDPListener instance.
 
         Parameters
         ----------
@@ -143,6 +141,12 @@ class UDPListener:
         self.sock = None  # UDP socket for listening.
 
     def start(self):
+        """Start the UDP listener in a background thread.
+
+        This method creates a UDP socket, binds it to the specified port,
+        and starts a thread to listen for incoming packets. The received
+        data is written to the specified output file.
+        """
         # Make sure the ready_event is clear before starting
         self.ready_event.clear()
 
@@ -170,7 +174,7 @@ class UDPListener:
                         # Receive data from the socket
                         data, _ = self.sock.recvfrom(4096)
                         f.write(data)
-                    except socket.timeout:
+                    except TimeoutError:
                         # Timeout occurred, check if we should stop
                         # because of the stop_event.
                         continue
@@ -188,8 +192,8 @@ class UDPListener:
         self.thread.start()
 
     def stop(self):
-        """
-        Stops the UDP listener.
+        """Stop the UDP listener.
+
         Signals the listener to stop and waits for the thread to terminate.
         """
         self.logger.info(
@@ -231,11 +235,11 @@ class USBReader:
         self,
         device: str,
         out_file: str,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
         process_name: str = "USB_READER",
     ):
         """
-        Initializes the USBReader instance.
+        Initialize the USBReader instance.
 
         Parameters
         ----------
@@ -258,9 +262,7 @@ class USBReader:
         self.thread = None  # Thread that will run the reader.
 
     def start(self):
-        """
-        Starts the USB reader in a background thread.
-        """
+        """Start the USB reader in a background thread."""
         self.logger.info(
             f"{self.process_name}: Starting USB reader for device {self.device}, "
             f"writing to {self.out_file}"
@@ -302,8 +304,8 @@ class USBReader:
         )
 
     def stop(self):
-        """
-        Stops the USB reader.
+        """Stop the USB reader.
+
         Signals the reader to stop and waits for the thread to terminate.
         """
         self.logger.info(

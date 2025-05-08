@@ -1,7 +1,14 @@
+"""
+Defines the BaseDevice class, which serves as a base class for external devices.
+
+It provides common attributes and enforces the presence of a `setup()` method in derived classes.
+"""
+
 import configparser
 import logging
-from pathlib import Path
 from importlib.resources import files
+from pathlib import Path
+
 from blackcat.logger import configure_logging
 from blackcat.utils import get_default_config_path
 
@@ -14,7 +21,7 @@ class BaseDevice:
     and enforces the presence of a `setup()` method in derived classes.
     """
 
-    DEFAULT_SAVE_PATH = "./data"
+    DEFAULT_SAVE_PATH = "./blackcat/data"
 
     def __init__(
         self,
@@ -22,8 +29,7 @@ class BaseDevice:
         save_path: str = None,
         logging_level: str = "INFO",
     ) -> None:
-        """
-        Initializes the object, providing a configuration file and a save path.
+        """Initialize the object with a configuration file and a save path.
 
         Args:
             config_file (str, optional): Path to the configuration file.
@@ -32,7 +38,8 @@ class BaseDevice:
                 None.
             logging_level (str, optional): Logging level. Defaults to 'INFO'.
 
-        Raises:
+        Raises
+        ------
             FileNotFoundError: If the configuration file does not exist.
             ValueError: If an invalid logging level is provided.
         """
@@ -110,8 +117,8 @@ class BaseDevice:
         self.logger.info(f"Save path updated to: {self._save_path}")
 
     def setup(self) -> None:
-        """
-        Sets up the TDC system by running the setup script defined in the
-        configuration file.
+        """Set up the TDC system.
+
+        Runs the setup script defined in the configuration file.
         """
         pass
