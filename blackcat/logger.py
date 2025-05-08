@@ -1,3 +1,9 @@
+"""
+Provides a utility function to configure logging for the application.
+
+It ensures consistent logging behavior across all components.
+"""
+
 import logging
 import sys
 
@@ -5,8 +11,9 @@ import sys
 def configure_logging(
     level=logging.INFO, log_to_file=False, filename="blackcat.log"
 ):
-    """Configures the logging system to ensure consistent logging
-    across all classes.
+    """Configure the logging system.
+
+    Ensures consistent logging across all classes.
     """
     # Check if logging is already configured
     if logging.getLogger().hasHandlers():

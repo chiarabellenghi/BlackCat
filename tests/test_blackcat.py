@@ -1,4 +1,5 @@
 import pytest
+
 from blackcat.core import BlackCat
 
 

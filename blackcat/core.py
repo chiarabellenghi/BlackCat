@@ -1,24 +1,31 @@
-import time
+"""Provides core functionality for the BlackCat system.
+
+It includes classes and methods to set up, calibrate, and manage the
+BlackCat system, as well as interact with external USB devices.
+"""
+
 import os
 import subprocess
+import time
 from pathlib import Path
-from typing import Optional, Dict
+
 from blackcat.base_objects import BaseDevice
-from blackcat.utils import run_shell_script, UDPListener, USBReader
 from blackcat.data_processing import process_raw_cal
+from blackcat.utils import UDPListener, USBReader, run_shell_script
 
 
 class BlackCat(BaseDevice):
-    """This class is hopefully helpful to use the BlackCat system.
-    With methods implemented for this object, you can setup the
-    system, run calibration measurements, run round-trip link delay
+    """Provides functionality to use the BlackCat system.
+
+    With methods implemented for this object, you can set up the
+    system, run calibration measurements, and run round-trip link delay
     measurements.
     """
 
     def __init__(
         self,
-        config_file: Optional[str] = None,
-        save_path: Optional[str] = None,
+        config_file: str | None = None,
+        save_path: str | None = None,
         logging_level: str = "INFO",
     ) -> None:
         super().__init__(config_file, save_path, logging_level)
@@ -38,13 +45,23 @@ class BlackCat(BaseDevice):
                 os.environ["DOGMA_BROADCAST_ADDRESS"],
             )
 
-        self.listeners: Optional[Dict[str, UDPListener]] = None
+        # Number of modules we expect to be online.
+        self.expected_count = len(
+            self.config["setup"]["tomcat_ids"].split()
+        ) + len(self.config["setup"]["tdc_ids"].split())
+
+        # Check what dog devices are visible
+        self.check_modules_online(self.expected_count, verbose=True)
+
+        self.listeners: dict[str, UDPListener] | None = None
 
     def setup(self, verbose: bool = False) -> None:
-        """Sets up everything, assigning IDs and broadcast bits
-        to all modules.
+        """Set up everything.
 
-        Raises:
+        Assigns IDs and broadcast bits to all modules.
+
+        Raises
+        ------
             KeyError: If the "setup" section or "script" key is missing in
                 the config file.
         """
@@ -69,7 +86,9 @@ class BlackCat(BaseDevice):
         self.logger.info("SETUP: DONE.")
 
     def calibrate(self, verbose: bool = False) -> None:
-        """Runs the calibration. First get to the calibration directory
+        """Run the calibration.
+
+        First get to the calibration directory
         for this runs. I have no clue what this will be in the final
         configuration of P-ONE-1, so let us keep it flexible for the
         moment. We read it out of the config file.
@@ -78,7 +97,8 @@ class BlackCat(BaseDevice):
             verbose (bool, optional): If True, adds a '--verbose' argument
                 to the script. Defaults to False.
 
-        Raises:
+        Raises
+        ------
             KeyError: If the "calibration" section or "script" key is
                 missing in the config file.
         """
@@ -108,12 +128,10 @@ class BlackCat(BaseDevice):
         self.logger.info("CALIBRATION: DONE.")
 
     def process_raw_calibration(self, verbose: bool = False) -> None:
-        """
-        Processes raw calibration files and generates human-readable
-        calibration files.
+        """Process raw calibration files.
 
-        This method ensures that the output directory for calibration files
-        exists, retrieves the list of TDC IDs from the configuration, and
+        Ensures that the output directory for calibration files exists,
+        retrieves the list of TDC IDs from the configuration, and
         processes each raw calibration file (`rc_<id>`) into a human-readable
         format (`tdc_cal_<id>`). The processed files are stored in the
         specified calibration output directory.
@@ -122,9 +140,10 @@ class BlackCat(BaseDevice):
             verbose (bool, optional): If True, logs additional information
                 about the calibration processing. Defaults to False.
 
-        Raises:
+        Raises
+        ------
             KeyError: If required configuration keys (e.g., "calibration" or
-            "setup") are missing from the configuration file.
+                "setup") are missing from the configuration file.
         """
         # Make sure a 'calibration' folder exists. We put there the output
         # calibration files.
@@ -149,7 +168,6 @@ class BlackCat(BaseDevice):
 
     def setup_and_calibrate(self, verbose: bool = False) -> None:
         """Run self.setup() and self.calibrate() one after the other.
-        Just for convenience.
 
         Args:
             verbose (bool, optional): If True, passes verbosity to the
@@ -160,14 +178,15 @@ class BlackCat(BaseDevice):
         # To make sure everything is ok, we setup again after calibration.
         self.setup(verbose=verbose)
 
-    def start_udp_listeners(self, outfile_suffix: Optional[str] = None) -> None:
-        """Starts the UDP listeners for the specified ports.
+    def start_udp_listeners(self, outfile_suffix: str | None = None) -> None:
+        """Start the UDP listeners for the specified ports.
 
         This method reads the port configuration from the config file and
         starts a UDP listener for each port. The listeners are stored in
         the `self.listeners` dictionary.
 
-        Raises:
+        Raises
+        ------
             KeyError: If the "run" section or "ports" key is missing in
                 the config file.
         """
@@ -200,15 +219,13 @@ class BlackCat(BaseDevice):
             time.sleep(1)
 
     def run_link_delay_measurement(
-        self, outfile_suffix: Optional[str] = None, verbose: bool = False
+        self, outfile_suffix: str | None = None, verbose: bool = False
     ) -> None:
-        """
-        Prepares and runs the link delay measurement process.
+        """Prepare and runs the link delay measurement process.
 
         Currently, this method only logs a message indicating that the
         process is being prepared.
         """
-
         if verbose:
             self.logger.info(
                 "DELAY LINK MEASUREMENT: Starting the link delay measurement"
@@ -242,10 +259,7 @@ class BlackCat(BaseDevice):
         self.logger.info("DELAY LINK MEASUREMENT: Running...")
 
     def stop_measurement(self) -> None:
-        """
-        Placeholder method for stopping the measurement.
-        Currently, this method does not perform any actions.
-        """
+        """Stop the measurement."""
         self.logger.debug("STOP MEASUREMENT: Stopping all UDP listeners...")
 
         # Stop the BC system
@@ -269,18 +283,12 @@ class BlackCat(BaseDevice):
 
     def reboot(self, max_retry: int = 2, verbose: bool = False) -> None:
         """
-        Placeholder method for a potential reboot feature.
+        Provide a placeholder for a potential reboot feature.
+
         See documentation here:
         https://eecloud.goip.de/dogma/doc/implementation.html#ping-of-death-pdd
-
-        Logs a warning that the method is not implemented yet.
         """
         self.logger.info("REBOOT: Broadcasting ping of death...")
-
-        # Number of modules I expect to be online after the reboot.
-        expected_count = len(self.config["setup"]["tomcat_ids"].split()) + len(
-            self.config["setup"]["tdc_ids"].split()
-        )
 
         # Send ping of death... not super safe.
         # Read the script name from the config file
@@ -308,7 +316,7 @@ class BlackCat(BaseDevice):
 
             count = 0
             modules_online = self.check_modules_online(
-                expected_count=expected_count
+                expected_count=self.expected_count
             )
             while not modules_online and count < 10:  # hard-coded... not nice.
                 count += 1
@@ -317,7 +325,7 @@ class BlackCat(BaseDevice):
                 )
                 time.sleep(2)
                 modules_online = self.check_modules_online(
-                    expected_count=expected_count
+                    expected_count=self.expected_count
                 )
 
             return modules_online
@@ -354,8 +362,7 @@ class BlackCat(BaseDevice):
     def check_modules_online(
         self, expected_count: int, verbose: bool = False
     ) -> bool:
-        """
-        Checks if all expected modules are back online after a reboot.
+        """Check if all expected modules are back online after a reboot.
 
         Returns
         -------
@@ -367,16 +374,13 @@ class BlackCat(BaseDevice):
         - RuntimeError
             If the `dog discover` command fails.
         """
-        self.logger.info(
-            "DOG DISCOVER: Checking if all modules are back online..."
-        )
+        self.logger.info("DOG DISCOVER: Checking if all modules are online...")
 
         try:
             # Run the `dog discover` command
             result = subprocess.run(
                 ["dog", "discover"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 check=True,
             )
@@ -397,7 +401,7 @@ class BlackCat(BaseDevice):
             # Check if the number of modules matches the expected count
             if len(module_lines) == expected_count:
                 self.logger.info(
-                    f"DOG DISCOVER: All {expected_count} modules back online."
+                    f"DOG DISCOVER: All {expected_count} modules online."
                 )
                 return True
             else:
@@ -416,15 +420,13 @@ class BlackCat(BaseDevice):
 
 
 class USBDevice(BaseDevice):
-    """
-    A class to interact with an external device connected via a USB serial port.
-    """
+    """A class to interact with an external device connectedvia a USB serial port."""
 
     def __init__(
         self,
         device: str,
-        config_file: Optional[str] = None,
-        save_path: Optional[str] = None,
+        config_file: str | None = None,
+        save_path: str | None = None,
         logging_level: str = "INFO",
     ) -> None:
         super().__init__(config_file, save_path, logging_level)
@@ -452,10 +454,10 @@ class USBDevice(BaseDevice):
         self._name = new_name
 
     def setup(self, verbose: bool = False) -> None:
-        """Sets up everything, assigning IDs and broadcast bits
-        to all modules.
+        """Set up everything.
 
-        Raises:
+        Raises
+        ------
             KeyError: If the "setup" section or "script" key is missing in
                 the config file.
         """
@@ -480,9 +482,8 @@ class USBDevice(BaseDevice):
         )
         self.logger.info(f"{self.name} SETUP: DONE.")
 
-    def start_usb_reading(self, outfile_suffix: Optional[str] = None) -> None:
-        """
-        Starts reading data from the USB device in the background.
+    def start_usb_reading(self, outfile_suffix: str | None = None) -> None:
+        """Start reading data from the USB device in the background.
 
         Args:
             outfile_suffix (str): Suffix for the output file where data will be saved.
@@ -504,9 +505,7 @@ class USBDevice(BaseDevice):
         self.usb_reader.start()
 
     def stop_usb_reading(self) -> None:
-        """
-        Stops the USB reading process.
-        """
+        """Stop the USB reading process."""
         if self.usb_reader:
             self.logger.info(f"{self.name} USB_READER: Stopping USB reading...")
             self.usb_reader.stop()

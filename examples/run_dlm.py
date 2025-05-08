@@ -1,5 +1,6 @@
 import argparse
 import time
+
 from blackcat.core import BlackCat
 
 if __name__ == "__main__":

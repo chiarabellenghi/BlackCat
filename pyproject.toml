@@ -27,3 +27,21 @@ dogma = ["dogma @ git+ssh://git@git.gsi.de/ee-dig/dogma/soft/dogma.git"]
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+# Ruff – Python linting and formatting
+[tool.ruff]
+fix = true
+show-fixes = true
+line-length = 80
+exclude = ["config.cfg"]
+
+[tool.ruff.lint]
+# Use rulesets pycodestyle, pyflakes, pyupgrade, flake8-bugbear, flake8-simplify, isort
+select = ["D", "E", "F", "UP", "SIM", "I"]
+ignore = ["D105", "D107", "E501"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy" # Accepts: "google", "numpy", or "pep257".
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
