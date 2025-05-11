@@ -26,32 +26,50 @@ class BlackCat(BaseDevice):
         self,
         config_file: str | None = None,
         save_path: str | None = None,
+        dog_modules: bool = True,
         logging_level: str = "INFO",
     ) -> None:
+        """Initialize the BlackCat system.
+
+        Args:
+            config_file (str, optional): Path to the configuration file.
+                If None, uses the default configuration file.
+            save_path (str, optional): Directory for saving data. Defaults to
+                None.
+            dog_modules (bool): Check the status of connected DOGMA devices.
+                Defaults to True.
+            logging_level (str, optional): Logging level. Defaults to 'INFO'.
+
+        Raises
+        ------
+            FileNotFoundError: If the configuration file does not exist.
+            ValueError: If an invalid logging level is provided.
+        """
         super().__init__(config_file, save_path, logging_level)
 
-        # Check if DOGMA_BROADCAST_ADDRESS is already set
-        if "DOGMA_BROADCAST_ADDRESS" not in os.environ:
-            os.environ["DOGMA_BROADCAST_ADDRESS"] = self.config["setup"][
-                "broadcast_address"
-            ]
-            print(
-                "DOGMA_BROADCAST_ADDRESS was not set. Setting it to:",
-                os.environ["DOGMA_BROADCAST_ADDRESS"],
-            )
-        else:
-            print(
-                "DOGMA_BROADCAST_ADDRESS is already set to:",
-                os.environ["DOGMA_BROADCAST_ADDRESS"],
-            )
+        if dog_modules:
+            # Check if DOGMA_BROADCAST_ADDRESS is already set
+            if "DOGMA_BROADCAST_ADDRESS" not in os.environ:
+                os.environ["DOGMA_BROADCAST_ADDRESS"] = self.config["setup"][
+                    "broadcast_address"
+                ]
+                print(
+                    "DOGMA_BROADCAST_ADDRESS was not set. Setting it to:",
+                    os.environ["DOGMA_BROADCAST_ADDRESS"],
+                )
+            else:
+                print(
+                    "DOGMA_BROADCAST_ADDRESS is already set to:",
+                    os.environ["DOGMA_BROADCAST_ADDRESS"],
+                )
 
-        # Number of modules we expect to be online.
-        self.expected_count = len(
-            self.config["setup"]["tomcat_ids"].split()
-        ) + len(self.config["setup"]["tdc_ids"].split())
+            # Number of modules we expect to be online.
+            self.expected_count = len(
+                self.config["setup"]["tomcat_ids"].split()
+            ) + len(self.config["setup"]["tdc_ids"].split())
 
-        # Check what dog devices are visible
-        self.check_modules_online(self.expected_count, verbose=True)
+            # Check what dog devices are visible
+            self.status(self.expected_count, verbose=True)
 
         self.listeners: dict[str, UDPListener] | None = None
 
@@ -315,18 +333,14 @@ class BlackCat(BaseDevice):
             )
 
             count = 0
-            modules_online = self.check_modules_online(
-                expected_count=self.expected_count
-            )
+            modules_online = self.status(expected_count=self.expected_count)
             while not modules_online and count < 10:  # hard-coded... not nice.
                 count += 1
                 self.logger.debug(
                     "REBOOT: Waiting for all modules to come back online..."
                 )
                 time.sleep(2)
-                modules_online = self.check_modules_online(
-                    expected_count=self.expected_count
-                )
+                modules_online = self.status(expected_count=self.expected_count)
 
             return modules_online
 
@@ -359,9 +373,7 @@ class BlackCat(BaseDevice):
         # Re-run setup after reboot
         self.setup(verbose=verbose)
 
-    def check_modules_online(
-        self, expected_count: int, verbose: bool = False
-    ) -> bool:
+    def status(self, expected_count: int, verbose: bool = False) -> bool:
         """Check if all expected modules are back online after a reboot.
 
         Returns
