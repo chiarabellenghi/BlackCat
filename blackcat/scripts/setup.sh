@@ -39,11 +39,12 @@ log() {
     fi
 }
 
+log "CONFIG_FILE $CONFIG_FILE"
+
 # Read TOMcat and TDC IDs from the [setup] section of the configuration file
-# TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
+TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
 # TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
-TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | cut -d '=' -f2-)
-TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | cut -d '=' -f2-)
+TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n' | grep -v '^$')
 
 if [ -z "$TOMCAT_IDS" ] || [ -z "$TDC_IDS" ]; then
     echo "Error: TOMcat or TDC IDs not found in the configuration file."
@@ -53,10 +54,6 @@ fi
 log "TOMcat IDs: $(echo $TOMCAT_IDS | tr '\n' ' ')"
 log "TDC IDs: $(echo $TDC_IDS | tr '\n' ' ')"
 
-# Convert strings to space-separated ID lists
-TOMCAT_IDS=$(echo "$TOMCAT_IDS_LINE" | xargs)
-TDC_IDS=$(echo "$TDC_IDS_LINE" | xargs)
-
 # address setup: we assign TOMcat bit 0 in multicast2 mode
 log "Setting up TOMcat addresses..."
 for id in $TOMCAT_IDS; do
@@ -64,16 +61,21 @@ for id in $TOMCAT_IDS; do
     DOGMA_IP=10.1.1.$id dog write 0xff000000 32 $id
 done
 
+# # Convert to array
+mapfile -t TDC_ARRAY < <(echo "$TDC_IDS")
+LDR_TDC_ID="${TDC_ARRAY[0]}"
+FLW_TDC_IDS=("${TDC_ARRAY[@]:1}")
+
 # all modules with TDC get bit 1 in multicast2 mode
-# the MST module gets bit 23 in multicast2 mode
-# the SLV modules get bit 22 in multicast2 mode
 log "Setting up multicast2 mode for TDC modules..."
-for id in $TDC_IDS; do
-    if [ "$id" == "150" ]; then
-        DOGMA_IP=10.1.1.$id dog write 0xff000000 34 0xfe800002
-    else
-        DOGMA_IP=10.1.1.$id dog write 0xff000000 34 0xfe400002
-    fi
+
+# Configure leader (gets bit 23 in multicast2 mode)
+DOGMA_IP=10.1.1.$LDR_TDC_ID dog write 0xff000000 34 0xfe800002
+DOGMA_IP=10.1.1.$LDR_TDC_ID dog write 0xff000000 32 $LDR_TDC_ID
+
+# Configure followers (get bit 22 in multicast2 mode)
+for id in "${FLW_TDC_IDS[@]}"; do
+    DOGMA_IP=10.1.1.$id dog write 0xff000000 34 0xfe400002
     DOGMA_IP=10.1.1.$id dog write 0xff000000 32 $id
 done
 
@@ -89,45 +91,49 @@ dog -b write 0xff000000 136 0x00800000
 
 # set DLM frequency (10ms) and ticker mark (77)
 log "Setting DLM frequency and ticker mark..."
-dog -b write 0xff000000 135 0x4d098968
+dog -b write 0xff000000 135 0x00098967 # 8ns DLM  pulse
 
 # TX enable for DLMs (non-ROOT modules)
 log "Enabling transmission for DLM..."
-dog -b write 0xfe400001 128 0x0000ffff
+dog -b write 0xfe400000 128 0x0000ffff
 # TX enable for DLMs (ROOT module)
-dog -b write 0xfe800000 128 0x0000efff
+dog -b write 0xfe800000 128 0x0000dfff
+# TC only uplink
+dog -b write 0xfe000001 128 0x00000001
 
 # check things
 if [ "$VERBOSE" -eq 1 ]; then
     dog -b read 0xff000000 128
 fi
 
+echo $TDC_IDS
+
 log "Set destination for TDC data"
 # set destination MAC/PORT
-# 150 => 22222
-dog -b sequence-write 150 141 0x0416466e 0x56ce241c 0x0a010101
-# 152 => 22223
-dog -b sequence-write 152 141 0x0416466e 0x56cf241c 0x0a010101
-# 154 => 22224
-dog -b sequence-write 154 141 0x0416466e 0x56d0241c 0x0a010101
+BASE_PORT_HEX=(0x56ce0a88 0x56d00a88 0x56d20a88)
+i=0
+for id in $TDC_IDS; do
+    dog -b sequence-write "$id" 141 0xc184fe2a "${BASE_PORT_HEX[$i]}" 0x0a010101
+    i=$((i + 1))
+done
 
 # enable triggered DLMs
 log "Enabling triggered DLMs..."
-dog -b write 150 136 0x40800000
+dog -b write "$LDR_TDC_ID" 136 0x40800000
 # reset TDC
 log "Resetting TDC..."
-dog -b write 150 2 0x000400d0
-dog -b write 150 2 0x000400de
-dog -b write 150 2 0x000400df
-dog -b write 150 2 0x000400d1
+dog -b write "$LDR_TDC_ID" 2 0x000400d0
+dog -b write "$LDR_TDC_ID" 2 0x000400de
+dog -b write "$LDR_TDC_ID" 2 0x000400df
+dog -b write "$LDR_TDC_ID" 2 0x000400d1
 
 # enable pushers
 log "Enabling pushers..."
-dog -b write 0xfe000002 133 0x77f00000
+dog -b write 0xfe000002 133 0x67f00000
 
 # check settings
-if [ "$VERBOSE" -eq 1 ]; then
-    dog -b read 0xfe000002 141
-    dog -b read 0xfe000002 142
-    dog -b read 0xfe000002 143
-fi
+# if [ "$VERBOSE" -eq 1 ]; then
+#     dog -b read 0xfe000002 141
+#     dog -b read 0xfe000002 142
+#     dog -b read 0xfe000002 143
+# fi
