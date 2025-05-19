@@ -41,27 +41,32 @@ log() {
 
 log "CONFIG_FILE $CONFIG_FILE"
 
+BASE_IP=$(hostname -I | awk '{print $1}' | sed -E 's/\.[0-9]+$//')
+log "Detected base IP: $BASE_IP"
+
 # Read TOMcat and TDC IDs from the [setup] section of the configuration file
 TOMCAT_IDS=$(awk -F '=' '/tomcat_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
-# TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n')
 TDC_IDS=$(awk -F '=' '/tdc_ids/ {print $2}' "$CONFIG_FILE" | tr ' ' '\n' | grep -v '^$')
 
-if [ -z "$TOMCAT_IDS" ] || [ -z "$TDC_IDS" ]; then
-    echo "Error: TOMcat or TDC IDs not found in the configuration file."
-    exit 1
+if [ -z "$TDC_IDS" ]; then
+	echo "Error: TDC IDs not found in the configuration file."
+	exit 1
 fi
 
-log "TOMcat IDs: $(echo $TOMCAT_IDS | tr '\n' ' ')"
 log "TDC IDs: $(echo $TDC_IDS | tr '\n' ' ')"
 
-# address setup: we assign TOMcat bit 0 in multicast2 mode
-log "Setting up TOMcat addresses..."
-for id in $TOMCAT_IDS; do
-    DOGMA_IP=10.1.1.$id dog write 0xff000000 34 0xfe000001
-    DOGMA_IP=10.1.1.$id dog write 0xff000000 32 $id
-done
+if [ -z "$TOMCAT_IDS" ]; then
+	log "No TOMcat IDs found. Skipping TOMcat setup..."
+else
+	# address setup: we assign TOMcat bit 0 in multicast2 mode
+	log "TOMcat IDs: $(echo $TOMCAT_IDS | tr '\n' ' ')"
+	for id in $TOMCAT_IDS; do
+		DOGMA_IP=$BASE_IP.$id dog write 0xff000000 34 0xfe000001
+		DOGMA_IP=$BASE_IP.$id dog write 0xff000000 32 $id
+	done
+fi
 
-# # Convert to array
+# Convert to array
 mapfile -t TDC_ARRAY < <(echo "$TDC_IDS")
 LDR_TDC_ID="${TDC_ARRAY[0]}"
 FLW_TDC_IDS=("${TDC_ARRAY[@]:1}")
@@ -70,13 +75,13 @@ FLW_TDC_IDS=("${TDC_ARRAY[@]:1}")
 log "Setting up multicast2 mode for TDC modules..."
 
 # Configure leader (gets bit 23 in multicast2 mode)
-DOGMA_IP=10.1.1.$LDR_TDC_ID dog write 0xff000000 34 0xfe800002
-DOGMA_IP=10.1.1.$LDR_TDC_ID dog write 0xff000000 32 $LDR_TDC_ID
+DOGMA_IP=$BASE_IP.$LDR_TDC_ID dog write 0xff000000 34 0xfe800002
+DOGMA_IP=$BASE_IP.$LDR_TDC_ID dog write 0xff000000 32 $LDR_TDC_ID
 
 # Configure followers (get bit 22 in multicast2 mode)
 for id in "${FLW_TDC_IDS[@]}"; do
-    DOGMA_IP=10.1.1.$id dog write 0xff000000 34 0xfe400002
-    DOGMA_IP=10.1.1.$id dog write 0xff000000 32 $id
+    DOGMA_IP=$BASE_IP.$id dog write 0xff000000 34 0xfe400002
+    DOGMA_IP=$BASE_IP.$id dog write 0xff000000 32 $id
 done
 
 # check things
@@ -131,9 +136,3 @@ dog -b write "$LDR_TDC_ID" 2 0x000400d1
 log "Enabling pushers..."
 dog -b write 0xfe000002 133 0x67f00000
 
-# check settings
-# if [ "$VERBOSE" -eq 1 ]; then
-#     dog -b read 0xfe000002 141
-#     dog -b read 0xfe000002 142
-#     dog -b read 0xfe000002 143
-# fi
